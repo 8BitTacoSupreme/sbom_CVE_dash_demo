@@ -1,0 +1,106 @@
+# Flox manifest version managed by Flox CLI
+version = 1
+
+## Install Packages
+[install]
+# Python 3.11 with full library support
+python.pkg-path = "python311Full"
+
+# Fast Python package/venv manager
+uv.pkg-path = "uv"
+
+# Docker compose for container orchestration
+docker-compose.pkg-path = "docker-compose"
+
+# JSON manipulation
+jq.pkg-path = "jq"
+
+# Kafka CLI tools
+kcat.pkg-path = "kafkacat"
+kafkactl.pkg-path = "kafkactl"
+
+# PostgreSQL client (for psql CLI)
+postgresql.pkg-path = "postgresql"
+
+# Useful utilities
+curl.pkg-path = "curl"
+envsubst.pkg-path = "envsubst"
+grype.pkg-path = "grype"
+
+## Environment Variables
+[vars]
+KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
+POSTGRES_HOST = "localhost"
+POSTGRES_PORT = "5432"
+POSTGRES_DB = "sca_demo"
+POSTGRES_USER = "sca"
+POSTGRES_PASSWORD = "sca_password"
+NVD_API_KEY = "52865b85-fec8-435b-aaf8-d140e7e18051"
+## Activation Hook
+[hook]
+on-activate = '''
+  venv="${FLOX_ENV_CACHE}/venv"
+
+  if [ ! -d "$venv" ]; then
+    echo "Creating Python virtual environment..."
+    uv venv "$venv" --python python3
+  fi
+
+  if [ -f "$venv/bin/activate" ]; then
+    source "$venv/bin/activate"
+  fi
+
+  deps_flag="${FLOX_ENV_CACHE}/.deps_installed"
+  if [ ! -f "$deps_flag" ]; then
+    echo "Installing Python dependencies..."
+    uv pip install --python "$venv/bin/python" \
+      kafka-python \
+      psycopg2-binary \
+      prometheus-client \
+      requests \
+      --quiet
+    touch "$deps_flag"
+  fi
+
+  # Create project directories if they don't exist
+  mkdir -p "$FLOX_ENV_PROJECT/producers"
+  mkdir -p "$FLOX_ENV_PROJECT/flink/jobs"
+  mkdir -p "$FLOX_ENV_PROJECT/postgres"
+  mkdir -p "$FLOX_ENV_PROJECT/prometheus"
+  mkdir -p "$FLOX_ENV_PROJECT/grafana/dashboards"
+  mkdir -p "$FLOX_ENV_PROJECT/grafana/provisioning/dashboards"
+  mkdir -p "$FLOX_ENV_PROJECT/grafana/provisioning/datasources"
+'''
+
+## Profile script
+[profile]
+common = '''
+  sca_status() {
+    echo "=== SCA Demo Status ==="
+    docker-compose ps 2>/dev/null || echo "Docker Compose not running"
+  }
+
+  sca_up() {
+    docker-compose up -d
+  }
+
+  sca_down() {
+    docker-compose down
+  }
+
+  sca_logs() {
+    docker-compose logs -f "${1:-}"
+  }
+'''
+
+## Services
+[services]
+
+## Options
+[options]
+systems = [
+  "aarch64-darwin",
+  "aarch64-linux",
+  "x86_64-darwin",
+  "x86_64-linux",
+]

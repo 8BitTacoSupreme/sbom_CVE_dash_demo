@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  # Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # SCA Metrics Exporter
+  - job_name: 'sca-exporter'
+    static_configs:
+      - targets: ['metrics-exporter:8000']
+    scrape_interval: 5s
+
+  # Flink metrics (if exposed)
+  - job_name: 'flink'
+    static_configs:
+      - targets: ['flink-jobmanager:8081']
+    metrics_path: /metrics

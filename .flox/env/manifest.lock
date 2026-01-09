@@ -1,0 +1,1337 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "curl": {
+        "pkg-path": "curl"
+      },
+      "docker-compose": {
+        "pkg-path": "docker-compose"
+      },
+      "envsubst": {
+        "pkg-path": "envsubst"
+      },
+      "grype": {
+        "pkg-path": "grype"
+      },
+      "jq": {
+        "pkg-path": "jq"
+      },
+      "kafkactl": {
+        "pkg-path": "kafkactl"
+      },
+      "kcat": {
+        "pkg-path": "kafkacat"
+      },
+      "postgresql": {
+        "pkg-path": "postgresql"
+      },
+      "python": {
+        "pkg-path": "python311Full"
+      },
+      "uv": {
+        "pkg-path": "uv"
+      }
+    },
+    "vars": {
+      "KAFKA_BOOTSTRAP_SERVERS": "localhost:9092",
+      "NVD_API_KEY": "52865b85-fec8-435b-aaf8-d140e7e18051",
+      "POSTGRES_DB": "sca_demo",
+      "POSTGRES_HOST": "localhost",
+      "POSTGRES_PASSWORD": "sca_password",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "sca"
+    },
+    "hook": {
+      "on-activate": "  venv=\"${FLOX_ENV_CACHE}/venv\"\n\n  if [ ! -d \"$venv\" ]; then\n    echo \"Creating Python virtual environment...\"\n    uv venv \"$venv\" --python python3\n  fi\n\n  if [ -f \"$venv/bin/activate\" ]; then\n    source \"$venv/bin/activate\"\n  fi\n\n  deps_flag=\"${FLOX_ENV_CACHE}/.deps_installed\"\n  if [ ! -f \"$deps_flag\" ]; then\n    echo \"Installing Python dependencies...\"\n    uv pip install --python \"$venv/bin/python\" \\\n      kafka-python \\\n      psycopg2-binary \\\n      prometheus-client \\\n      requests \\\n      --quiet\n    touch \"$deps_flag\"\n  fi\n\n  # Create project directories if they don't exist\n  mkdir -p \"$FLOX_ENV_PROJECT/producers\"\n  mkdir -p \"$FLOX_ENV_PROJECT/flink/jobs\"\n  mkdir -p \"$FLOX_ENV_PROJECT/postgres\"\n  mkdir -p \"$FLOX_ENV_PROJECT/prometheus\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/datasources\"\n"
+    },
+    "profile": {
+      "common": "  sca_status() {\n    echo \"=== SCA Demo Status ===\"\n    docker-compose ps 2>/dev/null || echo \"Docker Compose not running\"\n  }\n\n  sca_up() {\n    docker-compose up -d\n  }\n\n  sca_down() {\n    docker-compose down\n  }\n\n  sca_logs() {\n    docker-compose logs -f \"${1:-}\"\n  }\n"
+    },
+    "options": {
+      "systems": [
+        "aarch64-darwin",
+        "aarch64-linux",
+        "x86_64-darwin",
+        "x86_64-linux"
+      ]
+    }
+  },
+  "packages": [
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/psq3izh55ls3fq1jl6bn91kfr10xcvpd-curl-8.9.1.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "curl-8.9.1",
+      "pname": "curl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.9.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/jwyikhivayg1cnhq8dy396gafw2p7nzc-curl-8.9.1-bin",
+        "dev": "/nix/store/vcj58ndz7fxjpsl40g646nwnrg3g5h4w-curl-8.9.1-dev",
+        "devdoc": "/nix/store/hkpdd9na2pj9cq52xx285hzvhvp81hag-curl-8.9.1-devdoc",
+        "man": "/nix/store/260af9ihhfmf43yx7xyhnpg3qbif95pn-curl-8.9.1-man",
+        "out": "/nix/store/8a3dyq9kd9scbsqagfcasv3rkq749c60-curl-8.9.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/3r063c4jy3wraibc1rvy1kf2vkb5bnc9-curl-8.9.1.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "curl-8.9.1",
+      "pname": "curl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.9.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/20v3m4bkkkhq8pgjwccnpc1cy2r16g3s-curl-8.9.1-bin",
+        "debug": "/nix/store/brl478nbjmjlhrc6fgwy0570c5rvr57w-curl-8.9.1-debug",
+        "dev": "/nix/store/4rpmwdvmsrlxrfsrdr0qk3jf00sn48sh-curl-8.9.1-dev",
+        "devdoc": "/nix/store/xb866d2r4y5h1y8hk966srfpiq37pxra-curl-8.9.1-devdoc",
+        "man": "/nix/store/k6sxbdr652d0kxy1c39v5mgfsb5ayw9s-curl-8.9.1-man",
+        "out": "/nix/store/h2x0xrfq3iqfn6anb3hld7h3k0dgsj3x-curl-8.9.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/88qw9hfyzgzracw1sk5v6fn9hh9hcxdq-curl-8.9.1.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "curl-8.9.1",
+      "pname": "curl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.9.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/mpx4ws0xbllyqljfs2fi3ghdawg9jkza-curl-8.9.1-bin",
+        "dev": "/nix/store/h0y0vlbw3nclay3h5g6cslbavpnzgwxp-curl-8.9.1-dev",
+        "devdoc": "/nix/store/halagx6ybkdyavmxpj11qq7j9d0hljfd-curl-8.9.1-devdoc",
+        "man": "/nix/store/h014hmwi97j892zjxcchm2gzkgw7bj56-curl-8.9.1-man",
+        "out": "/nix/store/iafphqafhksq4wil0amk9nxrd757zfdp-curl-8.9.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/qmylqimn8q31mlbja3fmyyi05b1627ca-curl-8.9.1.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "curl-8.9.1",
+      "pname": "curl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.9.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/mm852m65blp3r7jq3iqyp8nnc64jw1l4-curl-8.9.1-bin",
+        "debug": "/nix/store/kwap1vwmmlfwr0s45cb0lgz77knjqgmq-curl-8.9.1-debug",
+        "dev": "/nix/store/m8kn1aq1ralckmqfdhl147ql9lpad2ky-curl-8.9.1-dev",
+        "devdoc": "/nix/store/r1937djiayiws99hwh74jlsnxyip0r1g-curl-8.9.1-devdoc",
+        "man": "/nix/store/fzazy0ib1w9mrsrd8fqv2p02z4r1689v-curl-8.9.1-man",
+        "out": "/nix/store/czkqnm2prg7lrhxpi7s04yv19xxkkfb5-curl-8.9.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "docker-compose",
+      "broken": false,
+      "derivation": "/nix/store/lppkv34xsdn0v7k9n06ssmz4h9229dgw-docker-compose-2.29.7.drv",
+      "description": "Docker CLI plugin to define and run multi-container applications with Docker",
+      "install_id": "docker-compose",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "docker-compose-2.29.7",
+      "pname": "docker-compose",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.29.7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/25sdxy9ys1hh5vyirqmvm1kh7fynaafk-docker-compose-2.29.7"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "docker-compose",
+      "broken": false,
+      "derivation": "/nix/store/6ia4xzi71sv9si3c05c19ar975x94f56-docker-compose-2.29.7.drv",
+      "description": "Docker CLI plugin to define and run multi-container applications with Docker",
+      "install_id": "docker-compose",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "docker-compose-2.29.7",
+      "pname": "docker-compose",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.29.7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/hkzqqix9sj8dpavlsrws01kxc6dii46r-docker-compose-2.29.7"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "docker-compose",
+      "broken": false,
+      "derivation": "/nix/store/w44i0w49wkqkmlvix5mrfgdq1amc1zb5-docker-compose-2.29.7.drv",
+      "description": "Docker CLI plugin to define and run multi-container applications with Docker",
+      "install_id": "docker-compose",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "docker-compose-2.29.7",
+      "pname": "docker-compose",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.29.7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/nmd7y6p6ybagxr1jb9nkc8gxp9xy61kw-docker-compose-2.29.7"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "docker-compose",
+      "broken": false,
+      "derivation": "/nix/store/va390ga16g107zd2b76ha8c0dca0ymzc-docker-compose-2.29.7.drv",
+      "description": "Docker CLI plugin to define and run multi-container applications with Docker",
+      "install_id": "docker-compose",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "docker-compose-2.29.7",
+      "pname": "docker-compose",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.29.7",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/16rixxab0y3ihlhf2gyhi89g16nn453p-docker-compose-2.29.7"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "envsubst",
+      "broken": false,
+      "derivation": "/nix/store/952zbzx54g93iz9nr7dyhrsszbknd8wg-envsubst-1.4.2.drv",
+      "description": "Environment variables substitution for Go",
+      "install_id": "envsubst",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "envsubst-1.4.2",
+      "pname": "envsubst",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.4.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/1w2h0lp3fvb6rmprndzqs49izld7wjiw-envsubst-1.4.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "envsubst",
+      "broken": false,
+      "derivation": "/nix/store/sp6bizj3i10ja1d6zjx7r4nnwrpwr5j9-envsubst-1.4.2.drv",
+      "description": "Environment variables substitution for Go",
+      "install_id": "envsubst",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "envsubst-1.4.2",
+      "pname": "envsubst",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.4.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/j8dp3dd8r7azd1m53f8yyp8687ybkvan-envsubst-1.4.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "envsubst",
+      "broken": false,
+      "derivation": "/nix/store/qgd8cc3g1yyi6i7q2rw8sgrfbcxgzf2q-envsubst-1.4.2.drv",
+      "description": "Environment variables substitution for Go",
+      "install_id": "envsubst",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "envsubst-1.4.2",
+      "pname": "envsubst",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.4.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/12gdjm5xxflv5jh64v8snha2hcyrzqvx-envsubst-1.4.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "envsubst",
+      "broken": false,
+      "derivation": "/nix/store/6nr5vl72cj8q2044l4b7y7bl6hak3n79-envsubst-1.4.2.drv",
+      "description": "Environment variables substitution for Go",
+      "install_id": "envsubst",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "envsubst-1.4.2",
+      "pname": "envsubst",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.4.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/yhvsahz2wn7mglzmvwvqb6c58x38a5ip-envsubst-1.4.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "grype",
+      "broken": false,
+      "derivation": "/nix/store/gfdnm767k4bskb59nfvr53f28wpf4vmz-grype-0.81.0.drv",
+      "description": "Vulnerability scanner for container images and filesystems",
+      "install_id": "grype",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "grype-0.81.0",
+      "pname": "grype",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.81.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/zshj6v4gwalxhkrpwzz77q5yznyhlcpf-grype-0.81.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "grype",
+      "broken": false,
+      "derivation": "/nix/store/z3z26b7hyvpbl6m3nazqhwzdwfsq4zkn-grype-0.81.0.drv",
+      "description": "Vulnerability scanner for container images and filesystems",
+      "install_id": "grype",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "grype-0.81.0",
+      "pname": "grype",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.81.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/qkz1lyygl1rjbima59jngqxfn91hpqbn-grype-0.81.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "grype",
+      "broken": false,
+      "derivation": "/nix/store/8sa2bffqgydylaxbi0cpcxra4zkkzj2k-grype-0.81.0.drv",
+      "description": "Vulnerability scanner for container images and filesystems",
+      "install_id": "grype",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "grype-0.81.0",
+      "pname": "grype",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.81.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/scwk19jharq9hn49w2pz6kj7djvk07b5-grype-0.81.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "grype",
+      "broken": false,
+      "derivation": "/nix/store/nmsmhv24kz30wywlip7rn4i0lq9i9cnc-grype-0.81.0.drv",
+      "description": "Vulnerability scanner for container images and filesystems",
+      "install_id": "grype",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "grype-0.81.0",
+      "pname": "grype",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.81.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/x8a82ikx00s3qb9nz3zrwsaq1d80ljf6-grype-0.81.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jq",
+      "broken": false,
+      "derivation": "/nix/store/vzb2mrrjg98k2mj7kycmdgiavfp6lr1r-jq-1.7.1.drv",
+      "description": "Lightweight and flexible command-line JSON processor",
+      "install_id": "jq",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "jq-1.7.1",
+      "pname": "jq",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/kkfa84h1sd7496mydwhnnqf0kdbgc0fa-jq-1.7.1-bin",
+        "dev": "/nix/store/q280g2yxhw4zin5cfm77gvq72b5p9kmi-jq-1.7.1-dev",
+        "doc": "/nix/store/668jid954q2jk52wabckqmhj0jpwn819-jq-1.7.1-doc",
+        "lib": "/nix/store/jlrm2b88xr9i5rcib7k8zs2wpr99iwwq-jq-1.7.1-lib",
+        "man": "/nix/store/x66c6grvwcaidz90mzgxiyg6r0qssybq-jq-1.7.1-man",
+        "out": "/nix/store/vmnfldwzmfx34xaqa1fbsv9zcdwfc22y-jq-1.7.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jq",
+      "broken": false,
+      "derivation": "/nix/store/4dkgpaik6mmw9ji85ykqqcdpf58qxp10-jq-1.7.1.drv",
+      "description": "Lightweight and flexible command-line JSON processor",
+      "install_id": "jq",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "jq-1.7.1",
+      "pname": "jq",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/ahpilzy1f17m9c7kbjvv7576zzbyy6qi-jq-1.7.1-bin",
+        "dev": "/nix/store/brrdfqm4lvgyb273wj1nnp5497q52gh1-jq-1.7.1-dev",
+        "doc": "/nix/store/cmq38fl372l8lwxafqzl6cz4m3syvksw-jq-1.7.1-doc",
+        "lib": "/nix/store/8xhqcza8rphrzmam4s8iwcpcxw0wplz9-jq-1.7.1-lib",
+        "man": "/nix/store/q4p9qaif44i4saks3vinfz2rmb0v9y7l-jq-1.7.1-man",
+        "out": "/nix/store/ykwd69vhal2nlqrz9fjp2llcc86qqn03-jq-1.7.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jq",
+      "broken": false,
+      "derivation": "/nix/store/jq5m78kik3bb58xdb7lhzys727rfxk62-jq-1.7.1.drv",
+      "description": "Lightweight and flexible command-line JSON processor",
+      "install_id": "jq",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "jq-1.7.1",
+      "pname": "jq",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/4x2l3ik7jcxp50fjydhwc79rk2gywpvy-jq-1.7.1-bin",
+        "dev": "/nix/store/1sx3gvxj99s43akr3cab0c8fqpxg38a9-jq-1.7.1-dev",
+        "doc": "/nix/store/a9z5vgyap84a7w75zcn8khc6r8x8fjfp-jq-1.7.1-doc",
+        "lib": "/nix/store/5vrryfk2lyr6a1kfp5blag5nw2344gzf-jq-1.7.1-lib",
+        "man": "/nix/store/apn118f0m6sj8lacqia105n16zsd1kwc-jq-1.7.1-man",
+        "out": "/nix/store/q84a2fwgbzx706g9h8jwwq0i2h97bm0y-jq-1.7.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "jq",
+      "broken": false,
+      "derivation": "/nix/store/7j5zz934ypp7iqykilr1fbjwm6r5i72f-jq-1.7.1.drv",
+      "description": "Lightweight and flexible command-line JSON processor",
+      "install_id": "jq",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "jq-1.7.1",
+      "pname": "jq",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/v0azfsqv58llx12jal5ngx3mj0rj7km6-jq-1.7.1-bin",
+        "dev": "/nix/store/3bg50gaw9hy1igq3sv4gndnvfmhwjgff-jq-1.7.1-dev",
+        "doc": "/nix/store/sw45lawqiv53pc7pwv07bc7d8yhmya5a-jq-1.7.1-doc",
+        "lib": "/nix/store/23jnqnvphk91kylc3gqcpdfy0m0ldz2j-jq-1.7.1-lib",
+        "man": "/nix/store/wf6x2kh1m16nhbipglxiaazsa27ni58f-jq-1.7.1-man",
+        "out": "/nix/store/wxxab7hxdagljsbcz2ma44mml0nv1jx0-jq-1.7.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkactl",
+      "broken": false,
+      "derivation": "/nix/store/39irw603fkj1m6xxmq2yscrwryma8amd-kafkactl-5.3.0.drv",
+      "description": "Command Line Tool for managing Apache Kafka",
+      "install_id": "kafkactl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kafkactl-5.3.0",
+      "pname": "kafkactl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "5.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/yw73x8g3iy9r3pkaw8xdj2cwv9ga5wma-kafkactl-5.3.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkactl",
+      "broken": false,
+      "derivation": "/nix/store/5a1402cbz22qbxb0qds9ydj6dpk4p1sh-kafkactl-5.3.0.drv",
+      "description": "Command Line Tool for managing Apache Kafka",
+      "install_id": "kafkactl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kafkactl-5.3.0",
+      "pname": "kafkactl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "5.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/1frb8qfgcdzp31mwizvdp8r1mkvwqnc1-kafkactl-5.3.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkactl",
+      "broken": false,
+      "derivation": "/nix/store/ak11j7jibaxcq6cqjkwvhpd9gh19ylzi-kafkactl-5.3.0.drv",
+      "description": "Command Line Tool for managing Apache Kafka",
+      "install_id": "kafkactl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kafkactl-5.3.0",
+      "pname": "kafkactl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "5.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/0w6p2wi44m29nq3cq0c11ybay2d8217r-kafkactl-5.3.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkactl",
+      "broken": false,
+      "derivation": "/nix/store/88frdgcjwqbmngkimnj1f9df9zrb01yv-kafkactl-5.3.0.drv",
+      "description": "Command Line Tool for managing Apache Kafka",
+      "install_id": "kafkactl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kafkactl-5.3.0",
+      "pname": "kafkactl",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "5.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/z8idli8xczlii6z0v21s6zjlv002nppa-kafkactl-5.3.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkacat",
+      "broken": false,
+      "derivation": "/nix/store/hjg0v35mcrj2cgpj4m3pc75mky0m0hz3-kcat-1.7.1.drv",
+      "description": "Generic non-JVM producer and consumer for Apache Kafka",
+      "install_id": "kcat",
+      "license": "BSD-2-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kcat-1.7.1",
+      "pname": "kafkacat",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/vpd562xip6kyc5hac5nw6dmiv0gd0ssp-kcat-1.7.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkacat",
+      "broken": false,
+      "derivation": "/nix/store/9v32cb157iyxfnibz71rsf5czsf7vfwv-kcat-1.7.1.drv",
+      "description": "Generic non-JVM producer and consumer for Apache Kafka",
+      "install_id": "kcat",
+      "license": "BSD-2-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kcat-1.7.1",
+      "pname": "kafkacat",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6if34pdbzlybwx5kwl0yyby2dqzz3i8a-kcat-1.7.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkacat",
+      "broken": false,
+      "derivation": "/nix/store/7gkxffdqfjxqrb1vrr0nfcdzwpbwrq3b-kcat-1.7.1.drv",
+      "description": "Generic non-JVM producer and consumer for Apache Kafka",
+      "install_id": "kcat",
+      "license": "BSD-2-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kcat-1.7.1",
+      "pname": "kafkacat",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/4dj7d2ag5dn3wldi1cqw10lv0hcgyzz5-kcat-1.7.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kafkacat",
+      "broken": false,
+      "derivation": "/nix/store/qz67hk6aajwms4qm2lqdkbv3cw6kpx92-kcat-1.7.1.drv",
+      "description": "Generic non-JVM producer and consumer for Apache Kafka",
+      "install_id": "kcat",
+      "license": "BSD-2-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "kcat-1.7.1",
+      "pname": "kafkacat",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.7.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/18ndnliiq8biy5axdphslx0rxmbwxix3-kcat-1.7.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "postgresql",
+      "broken": false,
+      "derivation": "/nix/store/44gs445ka3x92hbc6s5dmr09czhvhbg0-postgresql-16.4.drv",
+      "description": "Powerful, open source object-relational database system",
+      "install_id": "postgresql",
+      "license": "PostgreSQL",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "postgresql-16.4",
+      "pname": "postgresql",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "16.4",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/afjpl8ilq8s6j6zh4qqyy6mxz3v2xbav-postgresql-16.4-dev",
+        "doc": "/nix/store/ry9d9by692xj92y5b9j6z0aa5y3lh3px-postgresql-16.4-doc",
+        "lib": "/nix/store/d1im42w02x8gl2y380r4hgj8xgkkkbwc-postgresql-16.4-lib",
+        "man": "/nix/store/z1n2vh799a5icpaxbrjfqsasagb276bk-postgresql-16.4-man",
+        "out": "/nix/store/6dzxj78wph840cpwslh96s4gpm0iwch2-postgresql-16.4"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "postgresql",
+      "broken": false,
+      "derivation": "/nix/store/j4cyms2f9bwxb4li5pbqvfv8jmkmi6hl-postgresql-16.4.drv",
+      "description": "Powerful, open source object-relational database system",
+      "install_id": "postgresql",
+      "license": "PostgreSQL",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "postgresql-16.4",
+      "pname": "postgresql",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "16.4",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/71hz4hv1n6ivymbzd0jm3a61cyj9fwh5-postgresql-16.4-debug",
+        "dev": "/nix/store/ibhwvhq4gkdibkfrkqg9vmip9mhhrg2q-postgresql-16.4-dev",
+        "doc": "/nix/store/rmvkab0pxjjjznk350syr3gzpa13dz1k-postgresql-16.4-doc",
+        "lib": "/nix/store/39mnmp40qhpq2h6r3cj66s23sb5fkzr6-postgresql-16.4-lib",
+        "man": "/nix/store/mawnv85hv5y64csbmpgrnz88j7r8cby5-postgresql-16.4-man",
+        "out": "/nix/store/37r0vmsb8xd1kv3wjd99kr59q99ja3g0-postgresql-16.4"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "postgresql",
+      "broken": false,
+      "derivation": "/nix/store/8mbw30z97my2f56cw1djqx0sk5aj8jl6-postgresql-16.4.drv",
+      "description": "Powerful, open source object-relational database system",
+      "install_id": "postgresql",
+      "license": "PostgreSQL",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "postgresql-16.4",
+      "pname": "postgresql",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "16.4",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/96nxx00m06jl2jmvb16916l2rpwb13hk-postgresql-16.4-dev",
+        "doc": "/nix/store/r03r96a44grl85sflw6hvwwlrzr32rk9-postgresql-16.4-doc",
+        "lib": "/nix/store/cy3q9y20jwk1vkd6jxf3mnq6xzbb9dn8-postgresql-16.4-lib",
+        "man": "/nix/store/2wm2caki07a557z97228n2zxrd3a8j4b-postgresql-16.4-man",
+        "out": "/nix/store/vlgydd1rakmw9j14i8dgrlhzj4pa82vi-postgresql-16.4"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "postgresql",
+      "broken": false,
+      "derivation": "/nix/store/gr6sh73djiyh7rgam5mcn6146js03pxi-postgresql-16.4.drv",
+      "description": "Powerful, open source object-relational database system",
+      "install_id": "postgresql",
+      "license": "PostgreSQL",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "postgresql-16.4",
+      "pname": "postgresql",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "16.4",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/alcnsd7fkkr3iipvcn9gzsyv16kab6m9-postgresql-16.4-debug",
+        "dev": "/nix/store/pqya8lq5jyplfmbmafrrwsrsi07d5ssn-postgresql-16.4-dev",
+        "doc": "/nix/store/apbxfs52v8im9725mn2f1jhgbdfggrpd-postgresql-16.4-doc",
+        "lib": "/nix/store/32cprs7xwxvb0rw2imfrgy5vcacc27hc-postgresql-16.4-lib",
+        "man": "/nix/store/b8cvsw47h2487y4j805zi0645x3ajh1i-postgresql-16.4-man",
+        "out": "/nix/store/mjjfx6yyaaba5hmv6bga20m8fxrca93l-postgresql-16.4"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python311Full",
+      "broken": false,
+      "derivation": "/nix/store/rf40kz8zfa43qdbvnwr0fydnpk010si9-python3-3.11.10.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "python3-3.11.10",
+      "pname": "python311Full",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.11.10",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/wk63a45n5clk8rq5rlr0i6gwz076k6yc-python3-3.11.10"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python311Full",
+      "broken": false,
+      "derivation": "/nix/store/86ynzpckz8vf8pf86v6x46pw4bykjsxw-python3-3.11.10.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "python3-3.11.10",
+      "pname": "python311Full",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.11.10",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/cdhli7xgfmnmhzcd2cc7zc9301krz3d0-python3-3.11.10-debug",
+        "out": "/nix/store/gnqq4v15vgw2f3igq4qpap132m8cfld4-python3-3.11.10"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python311Full",
+      "broken": false,
+      "derivation": "/nix/store/8r4jfqizj633gcbr1xh0n06s06prf8n1-python3-3.11.10.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "python3-3.11.10",
+      "pname": "python311Full",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.11.10",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/xf2qc1nfn37808g1341yk661lh8xnc3a-python3-3.11.10"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "python311Full",
+      "broken": false,
+      "derivation": "/nix/store/drdxjb9my3sdb4xl8zf511fispywig8w-python3-3.11.10.drv",
+      "description": "High-level dynamically-typed programming language",
+      "install_id": "python",
+      "license": "Python-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "python3-3.11.10",
+      "pname": "python311Full",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "python3-3.11.10",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/fvxnwy92x5z9q6wz91rk5y97mf88ykzm-python3-3.11.10-debug",
+        "out": "/nix/store/7v4y9aggyrwavq2v9slsywvv7w98clb0-python3-3.11.10"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "uv",
+      "broken": false,
+      "derivation": "/nix/store/w51k2h65z9hw77y4h9c7mffxlrlggfm6-uv-0.4.20.drv",
+      "description": "Extremely fast Python package installer and resolver, written in Rust",
+      "install_id": "uv",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "uv-0.4.20",
+      "pname": "uv",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.4.20",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/knkva9prhn39g6chdyfnbc2cy6xyp3aa-uv-0.4.20-dist",
+        "out": "/nix/store/kj94bwy53x1szcp2zggmkcxcjy2n4nxl-uv-0.4.20"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "uv",
+      "broken": false,
+      "derivation": "/nix/store/6rip94xzma34rpf67wyq4alci174qkx6-uv-0.4.20.drv",
+      "description": "Extremely fast Python package installer and resolver, written in Rust",
+      "install_id": "uv",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "uv-0.4.20",
+      "pname": "uv",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.4.20",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/7jzi3q5g1sg8r48nrmbnsii862ia6s9n-uv-0.4.20-dist",
+        "out": "/nix/store/8jn9dha0xgrvm6xyh6x96q6wid6mck68-uv-0.4.20"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "uv",
+      "broken": false,
+      "derivation": "/nix/store/lmym7kky42z2b64abckz46r912c1w37k-uv-0.4.20.drv",
+      "description": "Extremely fast Python package installer and resolver, written in Rust",
+      "install_id": "uv",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "uv-0.4.20",
+      "pname": "uv",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.4.20",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/z4xlbg5rgqp9ijbj40g1q8hw55vm6bp1-uv-0.4.20-dist",
+        "out": "/nix/store/5a7gy3fcvzhmy9p99ab2r235m41wzz35-uv-0.4.20"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "uv",
+      "broken": false,
+      "derivation": "/nix/store/i5dkzbyxrv1j75k99adc5wcn87pwh1ww-uv-0.4.20.drv",
+      "description": "Extremely fast Python package installer and resolver, written in Rust",
+      "install_id": "uv",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "uv-0.4.20",
+      "pname": "uv",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.4.20",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dist": "/nix/store/045dc8ak0pfpz5nfv5avk9khf1y63rpq-uv-0.4.20-dist",
+        "out": "/nix/store/h9w1a72brbpl8jvxlq7fkmbbc9f2qxk4-uv-0.4.20"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

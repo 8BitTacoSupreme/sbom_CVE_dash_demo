@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.flox/cache/
+*.egg-info/
+.env
+/tmp/

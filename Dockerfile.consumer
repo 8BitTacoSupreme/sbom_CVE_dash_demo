@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies - pin elasticsearch to 8.11.x for ES 8.11 compatibility
+RUN pip install --no-cache-dir \
+    kafka-python \
+    "elasticsearch>=8.11.0,<8.12.0"
+
+# Copy consumer code
+COPY consumers/ /app/consumers/
+
+CMD ["python", "-m", "consumers.es_consumer"]
