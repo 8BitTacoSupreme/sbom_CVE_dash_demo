@@ -202,6 +202,8 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 | **CISA KEV** | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | Known exploited vulnerabilities | Active exploitation status, ransomware association |
 | **FIRST EPSS** | `https://api.first.org/data/v1/epss` | Exploit probability scores | Score (0-1), percentile ranking |
 
+> **NVD API Key**: For higher rate limits (10x), get a free API key at https://nvd.nist.gov/developers/request-an-api-key and set `NVD_API_KEY` in your environment.
+
 ---
 
 ## Component Summary

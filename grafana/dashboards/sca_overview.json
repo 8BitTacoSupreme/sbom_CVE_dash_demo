@@ -9,27 +9,46 @@
   "panels": [
     {
       "datasource": { "type": "postgres", "uid": "postgres" },
-      "description": "KEV + Critical - PagerDuty Alert / Block Build",
+      "description": "🚨 KEV + Critical - PagerDuty Alert / Block Build",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "custom": { "align": "left", "cellOptions": { "type": "auto" }, "inspect": false },
+          "color": { "mode": "fixed", "fixedColor": "dark-red" },
+          "custom": {
+            "align": "left",
+            "cellOptions": { "type": "color-background", "mode": "basic" },
+            "inspect": false,
+            "filterable": false
+          },
           "mappings": [],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "dark-red", "value": null }] }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "status" },
+            "matcher": { "id": "byName", "options": "🚨 ENV" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
-              { "id": "mappings", "value": [
-                { "options": { "BLOCKED (KEV)": { "color": "dark-red", "index": 0 } }, "type": "value" },
-                { "options": { "BLOCKED": { "color": "orange", "index": 1 } }, "type": "value" }
-              ]}
+              { "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } },
+              { "id": "custom.width", "value": 140 }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "kev" },
+            "matcher": { "id": "byName", "options": "CVE" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } },
+              { "id": "custom.width", "value": 150 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "risk" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } },
+              { "id": "custom.width", "value": 60 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "REASON" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
               { "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } }
@@ -40,10 +59,11 @@
       "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
       "id": 100,
       "options": {
-        "cellHeight": "sm",
+        "cellHeight": "md",
         "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
         "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "kev" }]
+        "sortBy": [{ "desc": true, "displayName": "risk" }],
+        "frameIndex": 0
       },
       "pluginVersion": "10.2.0",
       "targets": [
@@ -51,11 +71,11 @@
           "datasource": { "type": "postgres", "uid": "postgres" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT environment_id, cve_id, ROUND(risk_score, 0) as risk, tier_reason FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' AND alert_tier = 1 ORDER BY risk_score DESC LIMIT 10",
+          "rawSql": "SELECT environment_id as \"🚨 ENV\", cve_id as \"CVE\", ROUND(risk_score, 0) as risk, tier_reason as \"REASON\" FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' AND alert_tier = 1 ORDER BY risk_score DESC LIMIT 10",
           "refId": "A"
         }
       ],
-      "title": "BREAK GLASS (Tier 1)",
+      "title": "🚨 BREAK GLASS (Tier 1)",
       "type": "table"
     },
     {

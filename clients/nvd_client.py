@@ -127,8 +127,8 @@ class NVDClient:
 
     BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
-    # Hardcoded API key (get yours at https://nvd.nist.gov/developers/request-an-api-key)
-    DEFAULT_API_KEY = "52865b85-fec8-435b-aaf8-d140e7e18051"  # Replace with: "your-api-key-here"
+    # Optional API key (get yours at https://nvd.nist.gov/developers/request-an-api-key)
+    DEFAULT_API_KEY = None  # Set NVD_API_KEY env var for higher rate limits
 
     def __init__(self, api_key: Optional[str] = None, timeout: int = 30):
         """

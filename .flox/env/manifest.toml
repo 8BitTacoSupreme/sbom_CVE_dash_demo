@@ -35,7 +35,7 @@ POSTGRES_PORT = "5432"
 POSTGRES_DB = "sca_demo"
 POSTGRES_USER = "sca"
 POSTGRES_PASSWORD = "sca_password"
-NVD_API_KEY = "52865b85-fec8-435b-aaf8-d140e7e18051"
+NVD_API_KEY = ""  # Get your key at https://nvd.nist.gov/developers/request-an-api-key
 ## Activation Hook
 [hook]
 on-activate = '''
