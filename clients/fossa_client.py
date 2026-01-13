@@ -16,6 +16,7 @@ import os
 import json
 import logging
 import aiohttp
+from datetime import datetime, timezone
 from typing import Optional, List
 
 from .sca_client_base import SCAClientBase, SCAResponse, SCAVulnerability
@@ -60,62 +61,50 @@ class FOSSAClient(SCAClientBase):
             "Accept": "application/json"
         }
 
-    def _sbom_to_fossa_format(self, sbom: dict) -> dict:
+    def _get_sbom_payload(self, sbom: dict) -> dict:
         """
-        Convert internal SBOM format to FOSSA-compatible CycloneDX.
+        Get SBOM payload for FOSSA upload.
 
-        FOSSA accepts CycloneDX 1.4+ format for SBOM uploads.
+        FOSSA accepts both SPDX and CycloneDX formats directly.
+        If raw_spdx is available, use it directly (preferred).
+        Otherwise fall back to the simplified package list.
         """
-        components = []
-        dependencies = []
-        app_name = sbom.get("environment_id", "unknown-app")
+        # Prefer raw SPDX if available - FOSSA handles it natively
+        if sbom.get("raw_spdx"):
+            logger.info("[fossa] Using raw SPDX format")
+            return sbom["raw_spdx"]
 
+        # Fallback: convert simplified format to basic SPDX
+        logger.info("[fossa] Converting to SPDX format")
+        packages = []
         for idx, pkg in enumerate(sbom.get("packages", [])):
-            # Generate unique bom-ref for relationships
-            bom_ref = f"pkg:{idx}"
-
-            component = {
-                "type": "library",
-                "bom-ref": bom_ref,
+            spdx_pkg = {
+                "SPDXID": f"SPDXRef-Package-{idx}",
                 "name": pkg.get("name", "unknown"),
-                "version": pkg.get("version", "0.0.0"),
-                "supplier": {"name": "nixpkgs"},  # Default supplier for Nix packages
+                "versionInfo": pkg.get("version", "0.0.0"),
+                "downloadLocation": "NOASSERTION",
             }
             if pkg.get("purl"):
-                component["purl"] = pkg["purl"]
-            # Add license if available
+                spdx_pkg["externalRefs"] = [{
+                    "referenceCategory": "PACKAGE-MANAGER",
+                    "referenceType": "purl",
+                    "referenceLocator": pkg["purl"]
+                }]
             if pkg.get("license"):
-                component["licenses"] = [{"license": {"id": pkg["license"]}}]
-            components.append(component)
-
-            # Add as dependency of root application
-            dependencies.append({"ref": bom_ref, "dependsOn": []})
-
-        # Ensure timestamp is a string
-        timestamp = sbom.get("scan_timestamp")
-        if timestamp and not isinstance(timestamp, str):
-            timestamp = str(timestamp)
-        if not timestamp:
-            timestamp = datetime.now(timezone.utc).isoformat()
+                spdx_pkg["licenseConcluded"] = pkg["license"]
+                spdx_pkg["licenseDeclared"] = pkg["license"]
+            packages.append(spdx_pkg)
 
         return {
-            "bomFormat": "CycloneDX",
-            "specVersion": "1.4",
-            "version": 1,
-            "metadata": {
-                "timestamp": timestamp,
-                "authors": [{"name": "Flox SCA Demo"}],
-                "component": {
-                    "type": "application",
-                    "bom-ref": "root-app",
-                    "name": app_name,
-                    "version": "1.0.0"
-                }
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": "SPDXRef-DOCUMENT",
+            "name": sbom.get("environment_id", "unknown-app"),
+            "creationInfo": {
+                "created": sbom.get("scan_timestamp", datetime.now(timezone.utc).isoformat()),
+                "creators": ["Tool: flox-sca-demo"]
             },
-            "components": components,
-            "dependencies": [
-                {"ref": "root-app", "dependsOn": [c["bom-ref"] for c in components]}
-            ] + dependencies
+            "packages": packages
         }
 
     async def submit_sbom(self, sbom: dict) -> str:
@@ -157,11 +146,11 @@ class FOSSAClient(SCAClientBase):
                 if not signed_url:
                     raise ValueError("No signed URL returned from FOSSA")
 
-            # Step 2: Upload SBOM to signed URL
-            cyclonedx = self._sbom_to_fossa_format(sbom)
+            # Step 2: Upload SBOM to signed URL (SPDX or CycloneDX)
+            sbom_payload = self._get_sbom_payload(sbom)
             async with session.put(
                 signed_url,
-                json=cyclonedx,
+                json=sbom_payload,
                 headers={"Content-Type": "application/json"}
             ) as upload_resp:
                 if upload_resp.status >= 400:

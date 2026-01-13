@@ -204,7 +204,8 @@ def process_spdx_file(sbom_path, format_mode, environment_id=None, inject_hit=Fa
         "scan_timestamp": datetime.now(timezone.utc).isoformat(),
         "format_mode": format_mode,
         "source_file": sbom_path.name,
-        "packages": packages
+        "packages": packages,
+        "raw_spdx": spdx  # Original SPDX for tools like FOSSA that accept it directly
     }
 
 
