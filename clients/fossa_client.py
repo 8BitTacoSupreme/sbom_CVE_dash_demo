@@ -313,7 +313,7 @@ class FOSSAClient(SCAClientBase):
                 if data.get("resolved") is True:
                     return "completed"
 
-                status = data.get("status", "")
+                status = data.get("status") or ""
 
                 # FOSSA statuses: WAITING, SCANNING, ANALYZED, FAILED
                 status_map = {
@@ -322,7 +322,7 @@ class FOSSAClient(SCAClientBase):
                     "ANALYZED": "completed",
                     "FAILED": "failed"
                 }
-                return status_map.get(status.upper(), "in_progress")
+                return status_map.get(status.upper(), "in_progress") if status else "in_progress"
 
     async def get_results(self, job_id: str) -> dict:
         """
