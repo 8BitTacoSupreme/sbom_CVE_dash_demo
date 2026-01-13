@@ -90,11 +90,18 @@ def extract_purl_from_spdx_package(pkg, include_purl=True):
     {
         'purl': 'pkg:nix/name@version',
         'name': 'name',
-        'version': 'version'
+        'version': 'version',
+        'license': 'SPDX-License-ID'  # For FOSSA license compliance
     }
     """
     name = pkg.get("name", "unknown")
     version = pkg.get("versionInfo", "unknown")
+
+    # Extract license info (prefer concluded over declared)
+    license_id = pkg.get("licenseConcluded") or pkg.get("licenseDeclared")
+    # Skip NOASSERTION which means no license info
+    if license_id in ("NOASSERTION", "NONE", None):
+        license_id = None
 
     # Try to get existing PURL from externalRefs
     purl = None
@@ -113,11 +120,17 @@ def extract_purl_from_spdx_package(pkg, include_purl=True):
     if purl is None and include_purl:
         purl = generate_purl(name, version, nix_hash)
 
-    return {
+    result = {
         'purl': purl,  # None in legacy mode
         'name': name,
         'version': version
     }
+
+    # Add license if available (for FOSSA compliance scanning)
+    if license_id:
+        result['license'] = license_id
+
+    return result
 
 
 # =============================================================================

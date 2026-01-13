@@ -266,12 +266,21 @@ case "${1:-help}" in
         print_step "Resetting Demo Data"
         print_info "Clearing PostgreSQL tables..."
         docker-compose exec -T postgres psql -U sca -d sca_demo -c \
-            "TRUNCATE vulnerability_matches, detection_audit_log, sbom_inventory CASCADE;" 2>/dev/null || true
+            "TRUNCATE vulnerability_matches, detection_audit_log, sbom_inventory, sca_scan_results, sca_tool_vulnerabilities CASCADE;" 2>/dev/null || true
 
-        print_info "Restarting stream processor (clears in-memory state)..."
-        docker-compose restart stream-processor
+        print_info "Stopping stream processor..."
+        docker-compose stop stream-processor >/dev/null 2>&1
 
-        print_info "Done! Run './demo.sh seed' to re-seed CVE data if needed"
+        print_info "Resetting Kafka consumer offsets..."
+        docker-compose exec -T kafka kafka-consumer-groups \
+            --bootstrap-server localhost:9092 \
+            --group stream-processor \
+            --reset-offsets --to-earliest --all-topics --execute 2>/dev/null || true
+
+        print_info "Restarting stream processor..."
+        docker-compose start stream-processor >/dev/null 2>&1
+
+        print_info "Done! Run './demo.sh sca' to run the full demo"
         ;;
 
     live)
@@ -281,10 +290,60 @@ case "${1:-help}" in
         echo "  - OSV (Open Source Vulnerabilities) - PURL-based"
         echo "  - NVD (National Vulnerability Database) - CPE-based"
         echo ""
-        print_info "Querying live vulnerability data..."
-        python3 producers/live_cve_producer.py --demo
+        print_info "Querying and publishing live CVE data to Kafka..."
+        python3 producers/live_cve_producer.py --demo --kafka
         echo ""
-        print_info "To publish to Kafka, add --kafka flag"
+        print_info "CVEs published to cve_feed topic"
+        ;;
+
+    sca)
+        # Full SCA demo: CVEs + SBOM with vulnerable packages + Snyk/FOSSA
+        SBOM_FILE="${2:-emacs-30.2.spdx.json}"
+        SCA_TOOLS="${3:-snyk,fossa}"
+        print_step "Full SCA Demo: CVEs + SBOM + External Tools"
+        echo ""
+        echo -e "${CYAN}This demo:${NC}"
+        echo "  1. Fetches live CVEs from OSV/NVD → Kafka"
+        echo "  2. Produces SBOM with vulnerable log4j → Kafka"
+        echo "  3. Stream processor matches CVEs → Grafana alerts"
+        echo "  4. Sends to Snyk/FOSSA APIs → SCA comparison dashboard"
+        echo ""
+
+        # Step 1: Seed CVE data
+        print_info "Step 1: Seeding live CVE data..."
+        python3 producers/live_cve_producer.py --demo --kafka
+        echo ""
+
+        # Step 2: Seed log4j CVE for guaranteed match
+        print_info "Step 2: Seeding Log4Shell CVE for demo..."
+        python3 producers/cve_producer.py --seed-flox 2>&1 | grep -E "^  [🔴🟠🟡🔵]|Seeded|CVE Producer"
+        echo ""
+
+        # Step 3: Produce SBOM with vulnerable package + trigger SCA
+        print_info "Step 3: Producing SBOM with vulnerable log4j + triggering $SCA_TOOLS..."
+        python3 producers/sbom_producer.py \
+            --sbom="$SBOM_FILE" \
+            --format=enhanced \
+            --inject-hit \
+            --kafka \
+            --trigger-sca \
+            --sca-tools="$SCA_TOOLS"
+        echo ""
+
+        # Wait for processing
+        print_info "Step 4: Waiting for stream processor and SCA orchestrator..."
+        sleep 5
+
+        # Show results
+        echo ""
+        print_info "Check results:"
+        print_url "Grafana Overview:    http://localhost:3000/d/sca-overview"
+        print_url "SCA Comparison:      http://localhost:3000/d/sca-comparison"
+        print_url "Kibana:              http://localhost:5601"
+        print_url "Kafka UI:            http://localhost:8080"
+        echo ""
+        print_info "Query PostgreSQL for matches:"
+        echo "  ./demo.sh query"
         ;;
 
     live-sbom)
@@ -739,6 +798,7 @@ print('  Published SBOM with KEV-relevant packages')
         echo "Live Vulnerability Feeds (v2):"
         echo "  live            Query OSV + NVD with demo packages"
         echo "  live-sbom [f]   Query live CVEs for SBOM file"
+        echo "  sca [sbom] [tools]  Full SCA demo: CVEs + SBOM + Snyk/FOSSA"
         echo ""
         echo "Manual Operations:"
         echo "  sbom [opts]     Generate SBOM (--env=X, --inject-hit, --continuous)"
@@ -762,6 +822,10 @@ print('  Published SBOM with KEV-relevant packages')
         echo "Quick Start (Real CVE Data):"
         echo "  1. ./demo.sh up         # Start the stack (~30s)"
         echo "  2. ./demo.sh demo-hits  # Real CVEs with matching SBOMs"
+        echo ""
+        echo "Full SCA Pipeline (with Snyk/FOSSA):"
+        echo "  1. ./demo.sh up         # Start the stack"
+        echo "  2. ./demo.sh sca        # Live CVEs + SBOM + Snyk/FOSSA APIs"
         echo ""
         echo "Alternative Demos:"
         echo "  ./demo.sh kev           # Focus on actively exploited CVEs"

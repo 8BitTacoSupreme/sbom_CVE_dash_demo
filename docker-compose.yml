@@ -104,8 +104,9 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      # Hard-coded for Docker networking (ignores Flox localhost setting)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
       POSTGRES_USER: ${POSTGRES_USER:-sca}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
@@ -141,8 +142,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
       POSTGRES_USER: ${POSTGRES_USER:-sca}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
@@ -232,10 +233,13 @@ services:
     restart: unless-stopped
 
   # Splunk for "also works with" alternative to ELK
+  # NOTE: Splunk image only supports x86_64, not ARM64 (Apple Silicon)
+  # To include Splunk on x86_64: docker-compose --profile splunk up -d
   splunk:
     image: splunk/splunk:9.1.2
     hostname: splunk
     container_name: sca-splunk
+    profiles: ["splunk"]
     environment:
       - SPLUNK_START_ARGS=--accept-license
       - SPLUNK_PASSWORD=changeme123
@@ -253,12 +257,14 @@ services:
       start_period: 120s
 
   # Splunk consumer (Kafka → Splunk HEC)
+  # Only runs when Splunk profile is enabled
   splunk-consumer:
     build:
       context: .
       dockerfile: Dockerfile.consumer
     hostname: splunk-consumer
     container_name: sca-splunk-consumer
+    profiles: ["splunk"]
     command: python consumers/splunk_consumer.py
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -282,8 +288,8 @@ services:
     container_name: sca-orchestrator
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
       POSTGRES_USER: ${POSTGRES_USER:-sca}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}

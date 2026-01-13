@@ -39,7 +39,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'snyk' AND status = 'completed' AND created_at > NOW() - INTERVAL '1 hour'",
+          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'snyk' AND created_at > NOW() - INTERVAL '1 hour'",
           "refId": "A"
         }
       ],
@@ -70,7 +70,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'fossa' AND status = 'completed' AND created_at > NOW() - INTERVAL '1 hour'",
+          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'fossa' AND created_at > NOW() - INTERVAL '1 hour'",
           "refId": "A"
         }
       ],
@@ -98,7 +98,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'sonar' AND status = 'completed' AND created_at > NOW() - INTERVAL '1 hour'",
+          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'sonar' AND created_at > NOW() - INTERVAL '1 hour'",
           "refId": "A"
         }
       ],
@@ -151,7 +151,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT source, ROUND(AVG(latency_ms)) as avg_latency_ms FROM sca_scan_results WHERE status = 'completed' AND created_at > NOW() - INTERVAL '24 hours' GROUP BY source ORDER BY avg_latency_ms DESC",
+          "rawSql": "SELECT source, ROUND(AVG(latency_ms)) as avg_latency_ms FROM sca_scan_results WHERE created_at > NOW() - INTERVAL '24 hours' GROUP BY source ORDER BY avg_latency_ms DESC",
           "refId": "A"
         }
       ],
@@ -209,7 +209,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT source, SUM(critical_count) as critical, SUM(high_count) as high, SUM(medium_count) as medium, SUM(low_count) as low FROM sca_scan_results WHERE status = 'completed' AND created_at > NOW() - INTERVAL '24 hours' GROUP BY source ORDER BY source",
+          "rawSql": "SELECT source, SUM(critical_count) as critical, SUM(high_count) as high, SUM(medium_count) as medium, SUM(low_count) as low FROM sca_scan_results WHERE created_at > NOW() - INTERVAL '24 hours' GROUP BY source ORDER BY source",
           "refId": "A"
         }
       ],
@@ -232,7 +232,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'snyk' AND status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'snyk' AND created_at > NOW() - INTERVAL '24 hours'",
           "refId": "A"
         }
       ],
@@ -255,7 +255,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'fossa' AND status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'fossa' AND created_at > NOW() - INTERVAL '24 hours'",
           "refId": "A"
         }
       ],
@@ -278,7 +278,7 @@
         {
           "datasource": { "type": "postgresql", "uid": "postgres" },
           "format": "table",
-          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'sonar' AND status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'sonar' AND created_at > NOW() - INTERVAL '24 hours'",
           "refId": "A"
         }
       ],

@@ -67,11 +67,19 @@ class FOSSAClient(SCAClientBase):
         FOSSA accepts CycloneDX 1.4+ format for SBOM uploads.
         """
         components = []
-        for pkg in sbom.get("packages", []):
+        dependencies = []
+        app_name = sbom.get("environment_id", "unknown-app")
+
+        for idx, pkg in enumerate(sbom.get("packages", [])):
+            # Generate unique bom-ref for relationships
+            bom_ref = f"pkg:{idx}"
+
             component = {
                 "type": "library",
+                "bom-ref": bom_ref,
                 "name": pkg.get("name", "unknown"),
                 "version": pkg.get("version", "0.0.0"),
+                "supplier": {"name": "nixpkgs"},  # Default supplier for Nix packages
             }
             if pkg.get("purl"):
                 component["purl"] = pkg["purl"]
@@ -80,19 +88,34 @@ class FOSSAClient(SCAClientBase):
                 component["licenses"] = [{"license": {"id": pkg["license"]}}]
             components.append(component)
 
+            # Add as dependency of root application
+            dependencies.append({"ref": bom_ref, "dependsOn": []})
+
+        # Ensure timestamp is a string
+        timestamp = sbom.get("scan_timestamp")
+        if timestamp and not isinstance(timestamp, str):
+            timestamp = str(timestamp)
+        if not timestamp:
+            timestamp = datetime.now(timezone.utc).isoformat()
+
         return {
             "bomFormat": "CycloneDX",
             "specVersion": "1.4",
             "version": 1,
             "metadata": {
-                "timestamp": sbom.get("scan_timestamp"),
+                "timestamp": timestamp,
+                "authors": [{"name": "Flox SCA Demo"}],
                 "component": {
                     "type": "application",
-                    "name": sbom.get("environment_id", "unknown-app"),
+                    "bom-ref": "root-app",
+                    "name": app_name,
                     "version": "1.0.0"
                 }
             },
-            "components": components
+            "components": components,
+            "dependencies": [
+                {"ref": "root-app", "dependsOn": [c["bom-ref"] for c in components]}
+            ] + dependencies
         }
 
     async def submit_sbom(self, sbom: dict) -> str:
@@ -104,11 +127,13 @@ class FOSSAClient(SCAClientBase):
         project_name = sbom.get("environment_id", "flox-sca-scan")
         self._current_project = project_name
 
-        # Step 1: Get signed URL
+        # Step 1: Get signed URL for SBOM upload
         signed_url_endpoint = f"{self.API_BASE}/api/components/signed_url"
+        revision = sbom.get("environment_hash", "latest")[:16]
         params = {
-            "projectName": project_name,
-            "revision": sbom.get("environment_hash", "latest")[:16]
+            "packageSpec": project_name,
+            "revision": revision,
+            "fileType": "sbom"  # Required for SBOM import feature
         }
 
         async with aiohttp.ClientSession() as session:
@@ -121,7 +146,10 @@ class FOSSAClient(SCAClientBase):
                 if resp.status == 401:
                     raise PermissionError("FOSSA authentication failed - check FOSSA_TOKEN")
                 if resp.status == 403:
-                    raise PermissionError("FOSSA token lacks required permissions")
+                    error_body = await resp.text()
+                    if "premium" in error_body.lower() or "feature flag" in error_body.lower():
+                        raise PermissionError("FOSSA SBOM upload requires premium subscription (Free tier not supported)")
+                    raise PermissionError(f"FOSSA access denied: {error_body}")
                 resp.raise_for_status()
 
                 url_data = await resp.json()
@@ -140,8 +168,29 @@ class FOSSAClient(SCAClientBase):
                     error_text = await upload_resp.text()
                     raise ValueError(f"FOSSA upload failed: {error_text}")
 
+            # Step 3: Trigger build/analysis
+            build_endpoint = f"{self.API_BASE}/api/components/build"
+            build_params = {"fileType": "sbom"}
+            build_body = {
+                "selectedTeams": [],
+                "archives": [{
+                    "packageSpec": project_name,
+                    "revision": revision,
+                    "fileType": "sbom"
+                }]
+            }
+            async with session.post(
+                build_endpoint,
+                headers=self._headers(),
+                params=build_params,
+                json=build_body
+            ) as build_resp:
+                if build_resp.status >= 400:
+                    error_text = await build_resp.text()
+                    logger.warning(f"FOSSA build trigger returned {build_resp.status}: {error_text}")
+                    # Continue anyway - some plans don't require explicit build trigger
+
         # Return project locator as job_id
-        revision = sbom.get("environment_hash", "latest")[:16]
         return f"{project_name}${revision}"
 
     async def poll_status(self, job_id: str) -> str:

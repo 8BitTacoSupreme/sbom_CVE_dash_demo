@@ -6,5 +6,8 @@ kafka-python>=2.0.2
 # Async HTTP for SCA API calls
 aiohttp>=3.9.0
 
+# Sync HTTP for existing clients (osv, nvd, kev)
+requests>=2.31.0
+
 # PostgreSQL
 psycopg2-binary>=2.9.9

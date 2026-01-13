@@ -36,7 +36,7 @@
     },
     "vars": {
       "KAFKA_BOOTSTRAP_SERVERS": "localhost:9092",
-      "NVD_API_KEY": "52865b85-fec8-435b-aaf8-d140e7e18051",
+      "NVD_API_KEY": "",
       "POSTGRES_DB": "sca_demo",
       "POSTGRES_HOST": "localhost",
       "POSTGRES_PASSWORD": "sca_password",
@@ -44,7 +44,7 @@
       "POSTGRES_USER": "sca"
     },
     "hook": {
-      "on-activate": "  venv=\"${FLOX_ENV_CACHE}/venv\"\n\n  if [ ! -d \"$venv\" ]; then\n    echo \"Creating Python virtual environment...\"\n    uv venv \"$venv\" --python python3\n  fi\n\n  if [ -f \"$venv/bin/activate\" ]; then\n    source \"$venv/bin/activate\"\n  fi\n\n  deps_flag=\"${FLOX_ENV_CACHE}/.deps_installed\"\n  if [ ! -f \"$deps_flag\" ]; then\n    echo \"Installing Python dependencies...\"\n    uv pip install --python \"$venv/bin/python\" \\\n      kafka-python \\\n      psycopg2-binary \\\n      prometheus-client \\\n      requests \\\n      --quiet\n    touch \"$deps_flag\"\n  fi\n\n  # Create project directories if they don't exist\n  mkdir -p \"$FLOX_ENV_PROJECT/producers\"\n  mkdir -p \"$FLOX_ENV_PROJECT/flink/jobs\"\n  mkdir -p \"$FLOX_ENV_PROJECT/postgres\"\n  mkdir -p \"$FLOX_ENV_PROJECT/prometheus\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/datasources\"\n"
+      "on-activate": "  venv=\"${FLOX_ENV_CACHE}/venv\"\n\n  if [ ! -d \"$venv\" ]; then\n    echo \"Creating Python virtual environment...\"\n    uv venv \"$venv\" --python python3\n  fi\n\n  if [ -f \"$venv/bin/activate\" ]; then\n    source \"$venv/bin/activate\"\n  fi\n\n  deps_flag=\"${FLOX_ENV_CACHE}/.deps_installed\"\n  if [ ! -f \"$deps_flag\" ]; then\n    echo \"Installing Python dependencies...\"\n    uv pip install --python \"$venv/bin/python\" \\\n      kafka-python \\\n      psycopg2-binary \\\n      prometheus-client \\\n      requests \\\n      aiohttp \\\n      elasticsearch \\\n      --quiet\n    touch \"$deps_flag\"\n  fi\n\n  # Create project directories if they don't exist\n  mkdir -p \"$FLOX_ENV_PROJECT/producers\"\n  mkdir -p \"$FLOX_ENV_PROJECT/flink/jobs\"\n  mkdir -p \"$FLOX_ENV_PROJECT/postgres\"\n  mkdir -p \"$FLOX_ENV_PROJECT/prometheus\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/datasources\"\n"
     },
     "profile": {
       "common": "  sca_status() {\n    echo \"=== SCA Demo Status ===\"\n    docker-compose ps 2>/dev/null || echo \"Docker Compose not running\"\n  }\n\n  sca_up() {\n    docker-compose up -d\n  }\n\n  sca_down() {\n    docker-compose down\n  }\n\n  sca_logs() {\n    docker-compose logs -f \"${1:-}\"\n  }\n"
