@@ -18,6 +18,7 @@ import logging
 import aiohttp
 from datetime import datetime, timezone
 from typing import Optional, List
+from urllib.parse import quote
 
 from .sca_client_base import SCAClientBase, SCAResponse, SCAVulnerability
 
@@ -44,6 +45,8 @@ class FOSSAClient(SCAClientBase):
         self.token = os.environ.get("FOSSA_TOKEN")
         # FOSSA project name (derived from environment_id)
         self._current_project = None
+        # FOSSA org ID for locator prefix (discovered on first API call)
+        self._org_id = None
 
     @property
     def source_name(self) -> str:
@@ -61,18 +64,112 @@ class FOSSAClient(SCAClientBase):
             "Accept": "application/json"
         }
 
+    async def _discover_org_id(self, session: aiohttp.ClientSession) -> str:
+        """
+        Discover FOSSA org ID from projects API.
+
+        FOSSA locators include an org prefix like 'sbom+59671/project-name'.
+        We need this to correctly poll status and get results.
+        """
+        if self._org_id:
+            return self._org_id
+
+        url = f"{self.API_BASE}/api/projects"
+        async with session.get(url, headers=self._headers()) as resp:
+            if resp.status == 200:
+                projects = await resp.json()
+                if projects and len(projects) > 0:
+                    # Extract org ID from first project's locator
+                    # Format: sbom+{org_id}/project-name
+                    locator = projects[0].get("locator", "")
+                    if "/" in locator and "+" in locator:
+                        # sbom+59671/project -> 59671
+                        prefix = locator.split("/")[0]  # sbom+59671
+                        self._org_id = prefix.split("+")[1]  # 59671
+                        logger.info(f"[fossa] Discovered org ID: {self._org_id}")
+                        return self._org_id
+
+        # Fallback: check self to get org from existing project
+        logger.warning("[fossa] Could not discover org ID from projects")
+        return None
+
+    def _build_locator(self, project_name: str, revision: str) -> str:
+        """Build the full FOSSA locator with org prefix."""
+        if self._org_id:
+            return f"sbom+{self._org_id}/{project_name}${revision}"
+        # Fallback without org prefix (may not work for status polling)
+        return f"{project_name}${revision}"
+
+    def _parse_locator(self, job_id: str) -> tuple:
+        """
+        Parse a FOSSA locator into (full_project_id, revision).
+
+        Handles both formats:
+        - Full: sbom+59671/project-name$revision
+        - Simple: project-name$revision
+        """
+        if "$" in job_id:
+            full_project_id, revision = job_id.rsplit("$", 1)
+        else:
+            full_project_id = job_id
+            revision = "latest"
+        return full_project_id, revision
+
+    def _enrich_spdx_with_purls(self, spdx: dict, packages: list) -> dict:
+        """
+        Enrich raw SPDX with PURLs from our package list.
+
+        FOSSA requires PURLs for proper package identification.
+        The original SPDX has nix-store-paths but not PURLs.
+        """
+        import copy
+        enriched = copy.deepcopy(spdx)
+
+        # Build lookup from package name to PURL
+        purl_lookup = {}
+        for pkg in packages:
+            name = pkg.get("name", "").lower()
+            if name and pkg.get("purl"):
+                purl_lookup[name] = pkg["purl"]
+
+        # Enrich each SPDX package with PURL
+        purls_added = 0
+        for spdx_pkg in enriched.get("packages", []):
+            pkg_name = spdx_pkg.get("name", "").lower()
+
+            # Check if already has a PURL
+            has_purl = False
+            for ref in spdx_pkg.get("externalRefs", []):
+                if ref.get("referenceType") == "purl":
+                    has_purl = True
+                    break
+
+            # Add PURL if not present and we have one
+            if not has_purl and pkg_name in purl_lookup:
+                if "externalRefs" not in spdx_pkg:
+                    spdx_pkg["externalRefs"] = []
+                spdx_pkg["externalRefs"].append({
+                    "referenceCategory": "PACKAGE-MANAGER",
+                    "referenceType": "purl",
+                    "referenceLocator": purl_lookup[pkg_name]
+                })
+                purls_added += 1
+
+        logger.info(f"[fossa] Added {purls_added} PURLs to SPDX")
+        return enriched
+
     def _get_sbom_payload(self, sbom: dict) -> dict:
         """
         Get SBOM payload for FOSSA upload.
 
         FOSSA accepts both SPDX and CycloneDX formats directly.
-        If raw_spdx is available, use it directly (preferred).
+        If raw_spdx is available, enrich it with PURLs and use it.
         Otherwise fall back to the simplified package list.
         """
-        # Prefer raw SPDX if available - FOSSA handles it natively
+        # Prefer raw SPDX if available - enrich with PURLs for FOSSA
         if sbom.get("raw_spdx"):
-            logger.info("[fossa] Using raw SPDX format")
-            return sbom["raw_spdx"]
+            logger.info("[fossa] Using raw SPDX format with PURL enrichment")
+            return self._enrich_spdx_with_purls(sbom["raw_spdx"], sbom.get("packages", []))
 
         # Fallback: convert simplified format to basic SPDX
         logger.info("[fossa] Converting to SPDX format")
@@ -126,6 +223,9 @@ class FOSSAClient(SCAClientBase):
         }
 
         async with aiohttp.ClientSession() as session:
+            # Discover org ID first for proper locator construction
+            await self._discover_org_id(session)
+
             # Request signed URL
             async with session.get(
                 signed_url_endpoint,
@@ -179,8 +279,8 @@ class FOSSAClient(SCAClientBase):
                     logger.warning(f"FOSSA build trigger returned {build_resp.status}: {error_text}")
                     # Continue anyway - some plans don't require explicit build trigger
 
-        # Return project locator as job_id
-        return f"{project_name}${revision}"
+        # Return full project locator as job_id
+        return self._build_locator(project_name, revision)
 
     async def poll_status(self, job_id: str) -> str:
         """
@@ -189,15 +289,15 @@ class FOSSAClient(SCAClientBase):
         FOSSA processes uploads asynchronously. We check the project
         revision status until analysis is complete.
         """
-        # Parse project locator
-        if "$" in job_id:
-            project_name, revision = job_id.split("$", 1)
-        else:
-            project_name = job_id
-            revision = "latest"
+        # Parse project locator (handles both full and simple formats)
+        full_project_id, revision = self._parse_locator(job_id)
+
+        # URL-encode the full locator for the API call
+        # Full locator: sbom+59671/project-name$revision -> sbom%2B59671%2Fproject-name%24revision
+        encoded_locator = quote(f"{full_project_id}${revision}", safe="")
 
         # Check project build status
-        url = f"{self.API_BASE}/api/revisions/{project_name}%24{revision}"
+        url = f"{self.API_BASE}/api/revisions/{encoded_locator}"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=self._headers()) as resp:
@@ -208,6 +308,11 @@ class FOSSAClient(SCAClientBase):
                     return "failed"
 
                 data = await resp.json()
+
+                # Check if revision is resolved (analysis complete)
+                if data.get("resolved") is True:
+                    return "completed"
+
                 status = data.get("status", "")
 
                 # FOSSA statuses: WAITING, SCANNING, ANALYZED, FAILED
@@ -228,15 +333,12 @@ class FOSSAClient(SCAClientBase):
         - vulnerability: Security vulnerabilities
         - quality: Code quality issues
         """
-        # Parse project locator
-        if "$" in job_id:
-            project_name, revision = job_id.split("$", 1)
-        else:
-            project_name = job_id
-            revision = "latest"
+        # Parse project locator (handles both full and simple formats)
+        full_project_id, revision = self._parse_locator(job_id)
+        full_locator = f"{full_project_id}${revision}"
 
         results = {
-            "project": project_name,
+            "project": full_project_id,
             "revision": revision,
             "licensing_issues": [],
             "vulnerability_issues": [],
@@ -247,8 +349,8 @@ class FOSSAClient(SCAClientBase):
             # Get licensing issues
             license_url = f"{self.API_BASE}/api/v2/issues"
             license_params = {
-                "projectId": project_name,
-                "revisionId": f"{project_name}${revision}",
+                "projectId": full_project_id,
+                "revisionId": full_locator,
                 "category": "licensing"
             }
 
@@ -263,8 +365,8 @@ class FOSSAClient(SCAClientBase):
 
             # Get vulnerability issues
             vuln_params = {
-                "projectId": project_name,
-                "revisionId": f"{project_name}${revision}",
+                "projectId": full_project_id,
+                "revisionId": full_locator,
                 "category": "vulnerability"
             }
 
@@ -278,7 +380,8 @@ class FOSSAClient(SCAClientBase):
                     results["vulnerability_issues"] = vuln_data.get("issues", [])
 
             # Get dependency list
-            deps_url = f"{self.API_BASE}/api/revisions/{project_name}%24{revision}/dependencies"
+            encoded_locator = quote(full_locator, safe="")
+            deps_url = f"{self.API_BASE}/api/revisions/{encoded_locator}/dependencies"
             async with session.get(deps_url, headers=self._headers()) as resp:
                 if resp.status == 200:
                     deps_data = await resp.json()
@@ -324,23 +427,28 @@ class FOSSAClient(SCAClientBase):
         # Process license compliance issues as special "license vulnerability" entries
         # These are compliance risks, not security vulnerabilities per se
         for issue in licensing_issues:
-            license_info = issue.get("license", {})
-            affected = issue.get("affectedPackage", {})
+            # FOSSA API returns license as string, not dict
+            license_id = issue.get("license", "UNKNOWN")
+            if isinstance(license_id, dict):
+                license_id = license_id.get("id", "UNKNOWN")
 
-            # Create a pseudo-CVE ID for license issues
-            license_id = license_info.get("id", "UNKNOWN")
+            # Package info is in 'source' field
+            source = issue.get("source", {})
+            if isinstance(source, str):
+                source = {}
+
             issue_type = issue.get("type", "license_violation")
 
             vulnerabilities.append(SCAVulnerability(
                 cve_id=f"LICENSE-{license_id}",
                 source_id=f"FOSSA-LICENSE-{issue.get('id', 'UNKNOWN')}",
-                package=affected.get("name", issue.get("packageName", "unknown")),
-                version=affected.get("version", issue.get("packageVersion", "unknown")),
-                purl=affected.get("purl"),
+                package=source.get("name", "unknown"),
+                version=source.get("version", "unknown"),
+                purl=source.get("purl"),
                 severity=self._license_severity(issue_type),
                 cvss_score=None,
                 epss_score=None,
-                remediation=f"License: {license_id}. {issue.get('resolution', 'Review license compliance requirements.')}",
+                remediation=f"License: {license_id}. {issue.get('details', 'Review license compliance requirements.')}",
                 cwe_ids=[]
             ))
 
