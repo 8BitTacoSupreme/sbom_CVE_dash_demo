@@ -1,0 +1,412 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "SCA Tool Status",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "No Data" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'snyk' AND status = 'completed' AND created_at > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "Snyk",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "No Data" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "id": 14,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'fossa' AND status = 'completed' AND created_at > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "FOSSA",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM sca_scan_results WHERE source = 'sonar' AND status = 'completed' AND created_at > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "SonarQube",
+      "type": "stat"
+    },
+    {
+      "gridPos": { "h": 4, "w": 4, "x": 15, "y": 1 },
+      "id": 2,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "## Black Duck\n\n**Coming Soon...**\n\n*Waiting for trial license*",
+        "mode": "markdown"
+      },
+      "title": "",
+      "type": "text"
+    },
+    {
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 1 },
+      "id": 4,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "## Sonatype Nexus IQ\n\n**Coming Soon...**",
+        "mode": "markdown"
+      },
+      "title": "",
+      "type": "text"
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Performance Comparison",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "Latency (ms)", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "scaleDistribution": { "type": "linear" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "barRadius": 0.1, "barWidth": 0.6, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0, "xTickLabelSpacing": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT source, ROUND(AVG(latency_ms)) as avg_latency_ms FROM sca_scan_results WHERE status = 'completed' AND created_at > NOW() - INTERVAL '24 hours' GROUP BY source ORDER BY avg_latency_ms DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Average Response Latency by Tool",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "hideFrom": { "legend": false, "tooltip": false, "viz": false } },
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "displayLabels": ["name", "value"], "legend": { "displayMode": "list", "placement": "right", "showLegend": true }, "pieType": "pie", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true }, "tooltip": { "mode": "single", "sort": "none" } },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT source, COUNT(*) as scan_count FROM sca_scan_results WHERE created_at > NOW() - INTERVAL '24 hours' GROUP BY source",
+          "refId": "A"
+        }
+      ],
+      "title": "Scans by Tool",
+      "type": "piechart"
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "Vulnerability Comparison",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "scaleDistribution": { "type": "linear" } },
+          "mappings": []
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "critical" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "high" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "medium" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "low" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 7,
+      "options": { "barRadius": 0, "barWidth": 0.6, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "orientation": "horizontal", "showValue": "auto", "stacking": "normal", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0, "xTickLabelSpacing": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT source, SUM(critical_count) as critical, SUM(high_count) as high, SUM(medium_count) as medium, SUM(low_count) as low FROM sca_scan_results WHERE status = 'completed' AND created_at > NOW() - INTERVAL '24 hours' GROUP BY source ORDER BY source",
+          "refId": "A"
+        }
+      ],
+      "title": "Vulnerabilities by Severity (per Tool)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 15 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'snyk' AND status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+          "refId": "A"
+        }
+      ],
+      "title": "Snyk Critical",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 15 },
+      "id": 15,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'fossa' AND status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+          "refId": "A"
+        }
+      ],
+      "title": "FOSSA Critical",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 15 },
+      "id": 10,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT SUM(critical_count) as critical FROM sca_scan_results WHERE source = 'sonar' AND status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+          "refId": "A"
+        }
+      ],
+      "title": "Sonar Critical",
+      "type": "stat"
+    },
+    {
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 15 },
+      "id": 9,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "*BlackDuck*\n\n**Coming Soon**",
+        "mode": "markdown"
+      },
+      "title": "",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "tool_count" }, "properties": [{ "id": "custom.width", "value": 100 }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "id": 12,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT cve_id, COUNT(DISTINCT source) as tool_count, array_to_string(array_agg(DISTINCT source), ', ') as found_by, MAX(severity) as severity, MAX(cvss_score) as max_cvss FROM sca_tool_vulnerabilities WHERE cve_id IS NOT NULL GROUP BY cve_id ORDER BY tool_count DESC, max_cvss DESC NULLS LAST LIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Tool Agreement (CVEs found by multiple tools)",
+      "type": "table"
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "id": 104,
+      "title": "License Compliance (FOSSA)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "severity" }, "properties": [{ "id": "mappings", "value": [{ "options": { "critical": { "color": "red", "index": 0 }, "high": { "color": "orange", "index": 1 }, "medium": { "color": "yellow", "index": 2 }, "low": { "color": "blue", "index": 3 } }, "type": "value" }] }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "id": 16,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT cve_id as license_issue, package_name, package_version, severity, remediation FROM sca_tool_vulnerabilities WHERE source = 'fossa' AND cve_id LIKE 'LICENSE-%' ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "License Compliance Issues (FOSSA)",
+      "type": "table"
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "id": 103,
+      "title": "Recent Scans",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "postgresql", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "status" }, "properties": [{ "id": "mappings", "value": [{ "options": { "completed": { "color": "green", "index": 0 }, "failed": { "color": "red", "index": 1 } }, "type": "value" }] }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }] },
+          { "matcher": { "id": "byName", "options": "latency_ms" }, "properties": [{ "id": "unit", "value": "ms" }] },
+          { "matcher": { "id": "byName", "options": "critical_count" }, "properties": [{ "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "color-background" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 37 },
+      "id": 13,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "postgresql", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT source, environment_id, sbom_key, status, latency_ms, total_packages, critical_count, high_count, medium_count, low_count, created_at FROM sca_scan_results ORDER BY created_at DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Scan Results",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["sca", "comparison", "tools", "fossa", "license"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "SCA Tool Comparison",
+  "uid": "sca-comparison",
+  "version": 2,
+  "weekStart": ""
+}

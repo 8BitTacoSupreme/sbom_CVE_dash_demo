@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements-orchestrator.txt .
+RUN pip install --no-cache-dir -r requirements-orchestrator.txt
+
+# Copy client library
+COPY clients/ ./clients/
+
+# Copy orchestrator service
+COPY services/sca_orchestrator.py .
+
+# Run the orchestrator
+CMD ["python", "sca_orchestrator.py"]

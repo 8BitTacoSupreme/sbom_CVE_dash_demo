@@ -258,6 +258,75 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 
 ---
 
+## External SCA Tool Integration
+
+The pipeline integrates with commercial SCA tools for additional vulnerability and license compliance scanning.
+
+### Supported Tools
+
+| Tool | Status | Purpose |
+|------|--------|---------|
+| **Snyk** | Active | Developer-focused vulnerability scanning |
+| **FOSSA** | Active | License compliance + vulnerabilities |
+| **SonarQube** | Active | Integrated code + dependency analysis |
+| **Black Duck** | Coming Soon | Enterprise SCA with BDSA advisories |
+| **Sonatype Nexus IQ** | Coming Soon | Policy-driven vulnerability management |
+
+### Usage
+
+Trigger SCA scans when producing SBOMs:
+
+```bash
+# Scan with all configured tools
+python producers/sbom_producer.py --sbom=app.spdx.json --format=enhanced --kafka --trigger-sca
+
+# Scan with specific tools
+python producers/sbom_producer.py --sbom=app.spdx.json --format=enhanced --kafka --trigger-sca --sca-tools=snyk,fossa
+```
+
+### Configuration
+
+Copy `.env.example` to `.env` and configure credentials:
+
+```bash
+# Snyk
+SNYK_TOKEN=<api-token>
+SNYK_ORG_ID=<org-uuid>
+
+# FOSSA (License Compliance)
+FOSSA_TOKEN=<api-token>
+
+# SonarQube
+SONAR_URL=https://sonarqube.example.com
+SONAR_TOKEN=<bearer-token>
+```
+
+### Grafana Dashboard
+
+View SCA tool comparison at: http://localhost:3000/d/sca-comparison
+
+- Tool status and response latency
+- Vulnerability counts by tool and severity
+- License compliance issues (FOSSA)
+- Tool agreement matrix
+
+---
+
+## Alternative SIEM Integration
+
+### Splunk
+
+Splunk is available as an alternative to Elasticsearch/Kibana:
+
+| Component | Port | Purpose |
+|-----------|------|---------|
+| Splunk UI | 8001 | Web interface (admin/changeme123) |
+| Splunk HEC | 8088 | HTTP Event Collector |
+
+Search vulnerabilities: `index=sca_vulnerabilities`
+
+---
+
 ## Alert Tiers
 
 | Tier | Name | Trigger | Action |
@@ -283,7 +352,10 @@ Where:
 | Service | Port | URL |
 |---------|------|-----|
 | Grafana | 3000 | http://localhost:3000/d/sca-overview |
+| Grafana SCA Comparison | 3000 | http://localhost:3000/d/sca-comparison |
 | Kibana | 5601 | http://localhost:5601 |
+| Splunk UI | 8001 | http://localhost:8001 (admin/changeme123) |
+| Splunk HEC | 8088 | https://localhost:8088 |
 | Kafka UI | 8080 | http://localhost:8080 |
 | Prometheus | 9090 | http://localhost:9090 |
 | PostgreSQL | 5432 | `postgresql://sca:sca_password@localhost:5432/sca_demo` |

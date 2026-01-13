@@ -1,0 +1,10 @@
+# SCA Orchestrator Service Dependencies
+
+# Kafka
+kafka-python>=2.0.2
+
+# Async HTTP for SCA API calls
+aiohttp>=3.9.0
+
+# PostgreSQL
+psycopg2-binary>=2.9.9

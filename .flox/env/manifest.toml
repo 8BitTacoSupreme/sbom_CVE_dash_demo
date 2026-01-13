@@ -58,6 +58,8 @@ on-activate = '''
       psycopg2-binary \
       prometheus-client \
       requests \
+      aiohttp \
+      elasticsearch \
       --quiet
     touch "$deps_flag"
   fi

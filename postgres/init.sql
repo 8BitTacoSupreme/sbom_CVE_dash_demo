@@ -231,3 +231,135 @@ BEGIN
         source = EXCLUDED.source;
 END;
 $$ LANGUAGE plpgsql;
+
+-- =============================================================================
+-- SCA Tool Scan Results (for multi-tool comparison)
+-- =============================================================================
+
+-- Scan results from external SCA tools (Snyk, BlackDuck, Sonar, Sonatype)
+CREATE TABLE IF NOT EXISTS sca_scan_results (
+    id SERIAL PRIMARY KEY,
+    sbom_key VARCHAR(255) NOT NULL,
+    environment_id VARCHAR(255) NOT NULL,
+    source VARCHAR(50) NOT NULL,  -- snyk, blackduck, sonar, sonatype
+    scan_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL,  -- completed, failed
+    submitted_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    latency_ms INTEGER,
+    total_packages INTEGER,
+    packages_with_issues INTEGER,
+    critical_count INTEGER DEFAULT 0,
+    high_count INTEGER DEFAULT 0,
+    medium_count INTEGER DEFAULT 0,
+    low_count INTEGER DEFAULT 0,
+    error_message TEXT,
+    raw_response JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sca_results_sbom_key ON sca_scan_results(sbom_key);
+CREATE INDEX IF NOT EXISTS idx_sca_results_source ON sca_scan_results(source);
+CREATE INDEX IF NOT EXISTS idx_sca_results_env ON sca_scan_results(environment_id);
+CREATE INDEX IF NOT EXISTS idx_sca_results_created ON sca_scan_results(created_at);
+CREATE INDEX IF NOT EXISTS idx_sca_results_status ON sca_scan_results(status);
+
+-- Detailed vulnerability findings per SCA tool
+CREATE TABLE IF NOT EXISTS sca_tool_vulnerabilities (
+    id SERIAL PRIMARY KEY,
+    scan_result_id INTEGER REFERENCES sca_scan_results(id) ON DELETE CASCADE,
+    sbom_key VARCHAR(255) NOT NULL,
+    source VARCHAR(50) NOT NULL,
+    cve_id VARCHAR(50),
+    source_vuln_id VARCHAR(255),  -- Tool-specific ID (e.g., SNYK-JAVA-...)
+    package_name VARCHAR(255),
+    package_version VARCHAR(100),
+    purl VARCHAR(500),
+    severity VARCHAR(20),
+    cvss_score FLOAT,
+    epss_score FLOAT,
+    remediation TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sca_vulns_sbom ON sca_tool_vulnerabilities(sbom_key);
+CREATE INDEX IF NOT EXISTS idx_sca_vulns_cve ON sca_tool_vulnerabilities(cve_id);
+CREATE INDEX IF NOT EXISTS idx_sca_vulns_source ON sca_tool_vulnerabilities(source);
+CREATE INDEX IF NOT EXISTS idx_sca_vulns_severity ON sca_tool_vulnerabilities(severity);
+
+-- =============================================================================
+-- Views for SCA Tool Comparison Dashboard
+-- =============================================================================
+
+-- Summary by tool for latest scans
+CREATE OR REPLACE VIEW sca_tool_summary AS
+SELECT
+    source,
+    COUNT(*) as total_scans,
+    COUNT(*) FILTER (WHERE status = 'completed') as successful_scans,
+    COUNT(*) FILTER (WHERE status = 'failed') as failed_scans,
+    AVG(latency_ms) as avg_latency_ms,
+    SUM(critical_count) as total_critical,
+    SUM(high_count) as total_high,
+    SUM(medium_count) as total_medium,
+    SUM(low_count) as total_low
+FROM sca_scan_results
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY source;
+
+-- Tool agreement analysis (which CVEs are found by multiple tools)
+CREATE OR REPLACE VIEW sca_tool_agreement AS
+SELECT
+    cve_id,
+    COUNT(DISTINCT source) as tool_count,
+    array_agg(DISTINCT source) as found_by_tools,
+    MAX(severity) as max_severity,
+    MAX(cvss_score) as max_cvss
+FROM sca_tool_vulnerabilities
+WHERE cve_id IS NOT NULL
+GROUP BY cve_id
+ORDER BY tool_count DESC, max_cvss DESC NULLS LAST;
+
+-- Unique findings per tool (found by only one tool)
+CREATE OR REPLACE VIEW sca_unique_findings AS
+SELECT
+    v.source,
+    v.cve_id,
+    v.package_name,
+    v.severity,
+    v.cvss_score
+FROM sca_tool_vulnerabilities v
+WHERE v.cve_id IN (
+    SELECT cve_id
+    FROM sca_tool_vulnerabilities
+    WHERE cve_id IS NOT NULL
+    GROUP BY cve_id
+    HAVING COUNT(DISTINCT source) = 1
+)
+ORDER BY v.source, v.cvss_score DESC NULLS LAST;
+
+-- EPSS coverage by tool
+CREATE OR REPLACE VIEW sca_epss_coverage AS
+SELECT
+    source,
+    COUNT(*) as total_vulns,
+    COUNT(epss_score) as vulns_with_epss,
+    ROUND(100.0 * COUNT(epss_score) / NULLIF(COUNT(*), 0), 2) as epss_coverage_pct
+FROM sca_tool_vulnerabilities
+GROUP BY source;
+
+-- Latest scan status per environment and tool
+CREATE OR REPLACE VIEW sca_latest_scans AS
+SELECT DISTINCT ON (environment_id, source)
+    environment_id,
+    source,
+    sbom_key,
+    status,
+    latency_ms,
+    critical_count,
+    high_count,
+    medium_count,
+    low_count,
+    created_at
+FROM sca_scan_results
+ORDER BY environment_id, source, created_at DESC;

@@ -40,6 +40,10 @@ from kafka.errors import KafkaError
 # Configuration
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 SBOM_TOPIC = "sbom_events"
+SCA_REQUESTS_TOPIC = "sca_scan_requests"
+
+# Available SCA tools (blackduck and sonatype coming soon)
+AVAILABLE_SCA_TOOLS = ["snyk", "fossa", "sonar", "blackduck", "sonatype"]
 
 
 # =============================================================================
@@ -286,6 +290,39 @@ def publish_sbom(producer, sbom):
         return False
 
 
+def publish_sca_request(producer, sbom, tools):
+    """
+    Publish SCA scan request to trigger external tool scans.
+
+    This publishes to the sca_scan_requests topic which is consumed by
+    the SCA Orchestrator service to fan out to Snyk, BlackDuck, Sonar, Sonatype.
+    """
+    sbom_key = f"{sbom['environment_id']}:{sbom['environment_hash'][:16]}"
+
+    request = {
+        'sbom_key': sbom_key,
+        'environment_id': sbom['environment_id'],
+        'sbom': sbom,
+        'tools': tools,
+        'requested_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    try:
+        future = producer.send(
+            SCA_REQUESTS_TOPIC,
+            key=sbom_key,
+            value=request
+        )
+        record_metadata = future.get(timeout=10)
+        print(f"  SCA request published to {record_metadata.topic}:{record_metadata.partition}")
+        print(f"  SBOM Key: {sbom_key}")
+        print(f"  Tools: {', '.join(tools)}")
+        return True
+    except KafkaError as e:
+        print(f"  Failed to publish SCA request: {e}")
+        return False
+
+
 # =============================================================================
 # Output Helpers
 # =============================================================================
@@ -370,6 +407,12 @@ def main():
     parser.add_argument("--json", action="store_true",
                         help="Output full JSON instead of summary")
 
+    # SCA tool integration options
+    parser.add_argument("--trigger-sca", action="store_true",
+                        help="Trigger external SCA tools (Snyk, FOSSA, Sonar; BlackDuck/Sonatype coming soon)")
+    parser.add_argument("--sca-tools", type=str, default=",".join(AVAILABLE_SCA_TOOLS),
+                        help=f"Comma-separated list of SCA tools to trigger (default: {','.join(AVAILABLE_SCA_TOOLS)})")
+
     args = parser.parse_args()
 
     # Validate arguments
@@ -382,12 +425,18 @@ def main():
         print(f"ERROR: SBOM file not found: {args.sbom}", file=sys.stderr)
         sys.exit(1)
 
+    # Parse SCA tools
+    sca_tools = [t.strip() for t in args.sca_tools.split(",") if t.strip()]
+    sca_tools = [t for t in sca_tools if t in AVAILABLE_SCA_TOOLS]
+
     print(f"SBOM Producer starting...")
     print(f"  Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
     print(f"  Topic: {SBOM_TOPIC}")
     print(f"  Mode: {'SPDX file' if args.sbom else 'Mock generation'}")
     if args.sbom:
         print(f"  Format: {args.format_mode}")
+    if args.trigger_sca:
+        print(f"  SCA Tools: {', '.join(sca_tools)}")
 
     producer = None
     if args.kafka:
@@ -406,6 +455,8 @@ def main():
 
             if args.kafka:
                 publish_sbom(producer, sbom)
+                if args.trigger_sca and sca_tools:
+                    publish_sca_request(producer, sbom, sca_tools)
 
             if args.json:
                 print(json.dumps(sbom, indent=2))
@@ -425,6 +476,8 @@ def main():
 
                     if args.kafka:
                         publish_sbom(producer, sbom)
+                        if args.trigger_sca and sca_tools:
+                            publish_sca_request(producer, sbom, sca_tools)
                     elif args.json:
                         print(json.dumps(sbom, indent=2))
                     else:
@@ -441,6 +494,8 @@ def main():
 
                     if args.kafka:
                         publish_sbom(producer, sbom)
+                        if args.trigger_sca and sca_tools:
+                            publish_sca_request(producer, sbom, sca_tools)
                     elif args.json:
                         print(json.dumps(sbom, indent=2))
                     else:

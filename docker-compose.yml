@@ -58,6 +58,15 @@ services:
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sbom_events --partitions 3 --replication-factor 1 --config retention.ms=604800000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic cve_feed --partitions 1 --replication-factor 1 --config cleanup.policy=compact --config min.cleanable.dirty.ratio=0.01 --config segment.ms=100
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic vulnerability_matches --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        # SCA tool integration topics
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_scan_requests --partitions 3 --replication-factor 1 --config retention.ms=604800000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_scan_responses --partitions 3 --replication-factor 1 --config cleanup.policy=compact
+        # Per-tool response topics
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_snyk_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_blackduck_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_sonar_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_sonatype_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_fossa_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
         echo 'Topics created:'
         kafka-topics --list --bootstrap-server kafka:29092
 
@@ -69,14 +78,14 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: sca_demo
-      POSTGRES_USER: sca
-      POSTGRES_PASSWORD: sca_password
+      POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-sca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
     volumes:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sca -d sca_demo"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sca} -d ${POSTGRES_DB:-sca_demo}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -95,11 +104,13 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sca_demo
-      POSTGRES_USER: sca
-      POSTGRES_PASSWORD: sca_password
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-sca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
+      # NVD API key for higher rate limits (10x faster with key)
+      NVD_API_KEY: ${NVD_API_KEY:-}
     restart: unless-stopped
 
   # Prometheus for metrics
@@ -130,11 +141,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sca_demo
-      POSTGRES_USER: sca
-      POSTGRES_PASSWORD: sca_password
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-sca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
 
   # Kafka UI for browsing messages
   kafka-ui:
@@ -159,8 +170,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -220,8 +231,86 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Splunk for "also works with" alternative to ELK
+  splunk:
+    image: splunk/splunk:9.1.2
+    hostname: splunk
+    container_name: sca-splunk
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=changeme123
+      - SPLUNK_HEC_TOKEN=sca-demo-token
+    ports:
+      - "8088:8088"   # HEC endpoint
+      - "8001:8000"   # Web UI (8000 is used by metrics-exporter)
+    volumes:
+      - splunk_data:/opt/splunk/var
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:8088/services/collector/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # Splunk consumer (Kafka → Splunk HEC)
+  splunk-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    hostname: splunk-consumer
+    container_name: sca-splunk-consumer
+    command: python consumers/splunk_consumer.py
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPLUNK_HEC_URL: https://splunk:8088
+      SPLUNK_HEC_TOKEN: sca-demo-token
+      SPLUNK_INDEX: sca_vulnerabilities
+      SPLUNK_VERIFY_SSL: "false"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      splunk:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # SCA Orchestrator (fans out to Snyk, FOSSA, Sonar; BlackDuck/Sonatype coming soon)
+  sca-orchestrator:
+    build:
+      context: .
+      dockerfile: services/Dockerfile.orchestrator
+    hostname: sca-orchestrator
+    container_name: sca-orchestrator
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-sca_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-sca}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
+      # NVD API key for enrichment
+      NVD_API_KEY: ${NVD_API_KEY:-}
+      # SCA tool credentials (provided by user via .env file)
+      SNYK_TOKEN: ${SNYK_TOKEN:-}
+      SNYK_ORG_ID: ${SNYK_ORG_ID:-}
+      BD_URL: ${BD_URL:-}
+      BD_TOKEN: ${BD_TOKEN:-}
+      SONAR_URL: ${SONAR_URL:-}
+      SONAR_TOKEN: ${SONAR_TOKEN:-}
+      IQ_URL: ${IQ_URL:-}
+      IQ_TOKEN: ${IQ_TOKEN:-}
+      IQ_APP_ID: ${IQ_APP_ID:-flox-sca}
+      # FOSSA for license compliance
+      FOSSA_TOKEN: ${FOSSA_TOKEN:-}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
   es_data:
+  splunk_data:

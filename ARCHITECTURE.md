@@ -258,6 +258,159 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 
 ---
 
+## External SCA Tool Integration
+
+The pipeline supports integration with commercial SCA tools for additional vulnerability and license compliance scanning.
+
+### Architecture
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                         EXTERNAL SCA TOOL INTEGRATION                                │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────────────────┐
+  │                           SBOM PRODUCER (--trigger-sca)                             │
+  │                                       │                                             │
+  │                                       ▼                                             │
+  │                           ┌───────────────────────┐                                │
+  │                           │  sca_scan_requests    │                                │
+  │                           │    (Kafka topic)      │                                │
+  │                           └───────────┬───────────┘                                │
+  └───────────────────────────────────────┼─────────────────────────────────────────────┘
+                                          │
+                                          ▼
+  ┌─────────────────────────────────────────────────────────────────────────────────────┐
+  │                              SCA ORCHESTRATOR                                        │
+  │                                                                                      │
+  │    ┌────────────────────────────────────────────────────────────────────────┐       │
+  │    │                    ASYNC FAN-OUT (asyncio.gather)                       │       │
+  │    │                                                                         │       │
+  │    │   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐  ┌─────────┐  │       │
+  │    │   │  SNYK   │   │  FOSSA  │   │ SONAR   │   │BLACKDUCK│  │SONATYPE │  │       │
+  │    │   │   API   │   │   API   │   │   API   │   │(coming) │  │(coming) │  │       │
+  │    │   └────┬────┘   └────┬────┘   └────┬────┘   └─────────┘  └─────────┘  │       │
+  │    │        │             │             │                                   │       │
+  │    └────────┼─────────────┼─────────────┼───────────────────────────────────┘       │
+  │             └─────────────┼─────────────┘                                           │
+  │                           │                                                         │
+  │              ┌────────────┼────────────┐                                            │
+  │              ▼            ▼            ▼                                            │
+  │    ┌───────────────┐ ┌────────────┐ ┌───────────────┐                              │
+  │    │Per-tool topics│ │ Unified    │ │  PostgreSQL   │                              │
+  │    │sca_snyk_*     │ │ topic      │ │ (scan results)│                              │
+  │    │sca_fossa_*    │ │sca_scan_*  │ │               │                              │
+  │    └───────────────┘ └────────────┘ └───────────────┘                              │
+  └─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Supported SCA Tools
+
+| Tool | Status | Purpose | Key Features |
+|------|--------|---------|--------------|
+| **Snyk** | Active | Developer-focused vulnerability scanning | 3-step async API, CycloneDX support |
+| **FOSSA** | Active | License compliance + vulnerabilities | 2-step signed URL upload, license violations |
+| **SonarQube** | Active | Integrated code + dependency analysis | Server-based scanning |
+| **Black Duck** | Coming Soon | Enterprise SCA with BDSA advisories | BDIO format, EPSS enrichment |
+| **Sonatype Nexus IQ** | Coming Soon | Policy-driven vulnerability management | CycloneDX XML, remediation |
+
+### SCA Kafka Topics
+
+| Topic | Purpose |
+|-------|---------|
+| `sca_scan_requests` | SBOM scan requests (input) |
+| `sca_scan_responses` | Unified responses (all tools) |
+| `sca_snyk_responses` | Snyk-specific results |
+| `sca_fossa_responses` | FOSSA-specific results |
+| `sca_sonar_responses` | SonarQube-specific results |
+| `sca_blackduck_responses` | Black Duck results (coming soon) |
+| `sca_sonatype_responses` | Sonatype results (coming soon) |
+
+### SCA Client Base Class (`clients/sca_client_base.py`)
+
+All SCA tool clients implement a common interface:
+
+```python
+class SCAClientBase(ABC):
+    @abstractmethod
+    async def submit_sbom(self, sbom: dict) -> str:
+        """Submit SBOM, return job ID"""
+
+    @abstractmethod
+    async def poll_status(self, job_id: str) -> str:
+        """Poll job status: pending|in_progress|completed|failed"""
+
+    @abstractmethod
+    async def get_results(self, job_id: str) -> dict:
+        """Retrieve vulnerability results"""
+
+    @abstractmethod
+    def normalize_response(self, raw: dict, latency_ms: int) -> SCAResponse:
+        """Normalize to common SCAResponse schema"""
+```
+
+### Environment Variables
+
+```bash
+# Snyk
+SNYK_TOKEN=<api-token>
+SNYK_ORG_ID=<org-uuid>
+
+# FOSSA (License Compliance)
+FOSSA_TOKEN=<api-token>
+
+# SonarQube
+SONAR_URL=https://sonarqube.example.com
+SONAR_TOKEN=<bearer-token>
+
+# Black Duck (coming soon)
+BD_URL=https://blackduck.example.com
+BD_TOKEN=<bearer-token>
+
+# Sonatype Nexus IQ (coming soon)
+IQ_URL=https://iq.example.com
+IQ_TOKEN=<bearer-token>
+IQ_APP_ID=<application-id>
+```
+
+### FOSSA License Compliance
+
+FOSSA provides license compliance scanning in addition to vulnerability detection. License issues are tracked with `LICENSE-*` pseudo-CVE IDs:
+
+```
+LICENSE-GPL-3.0      → High severity (copyleft risk)
+LICENSE-UNKNOWN      → Medium severity (unlicensed)
+LICENSE-MIT          → Low severity (permissive)
+```
+
+---
+
+## Alternative SIEM Integration
+
+### Splunk (Alternative to ELK)
+
+The pipeline supports Splunk as an alternative to Elasticsearch/Kibana:
+
+```
+┌───────────────────┐        ┌───────────────────┐
+│ vulnerability     │        │    Splunk HEC     │
+│   _matches        │───────▶│     :8088         │
+│   (Kafka)         │        └─────────┬─────────┘
+└───────────────────┘                  │
+                                       ▼
+                              ┌───────────────────┐
+                              │   Splunk Web UI   │
+                              │     :8001         │
+                              └───────────────────┘
+```
+
+| Component | Port | Purpose |
+|-----------|------|---------|
+| Splunk HEC | 8088 | HTTP Event Collector endpoint |
+| Splunk UI | 8001 | Web interface (admin/changeme123) |
+| splunk-consumer | - | Kafka → Splunk bridge |
+
+---
+
 ## Alert Tiers
 
 | Tier | Name | Trigger | Action |
@@ -283,7 +436,10 @@ Where:
 | Service | Port | URL |
 |---------|------|-----|
 | Grafana | 3000 | http://localhost:3000/d/sca-overview |
+| Grafana SCA Comparison | 3000 | http://localhost:3000/d/sca-comparison |
 | Kibana | 5601 | http://localhost:5601 |
+| Splunk UI | 8001 | http://localhost:8001 (admin/changeme123) |
+| Splunk HEC | 8088 | https://localhost:8088 |
 | Kafka UI | 8080 | http://localhost:8080 |
 | Prometheus | 9090 | http://localhost:9090 |
 | PostgreSQL | 5432 | `postgresql://sca:sca_password@localhost:5432/sca_demo` |
