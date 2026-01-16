@@ -1,5 +1,7 @@
 # SCA Vulnerability Detection Pipeline - Architecture
 
+![Flox SCA SBOM Architecture](FLOX_SEM_SCA_SBOM.png)
+
 ## System Architecture
 
 ```
