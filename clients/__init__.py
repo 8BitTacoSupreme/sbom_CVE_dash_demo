@@ -5,6 +5,8 @@ Clients for querying live vulnerability databases:
 - OSV (Open Source Vulnerabilities) - PURL-based queries
 - NVD (National Vulnerability Database) - CPE-based queries
 - KEV (CISA Known Exploited Vulnerabilities) - Active exploitation status
+- EPSS (Exploit Prediction Scoring System) - Exploitation probability scores
+- GHSA (GitHub Security Advisories) - GitHub-curated vulnerability data
 
 External SCA Tool Clients:
 - Snyk - Developer-focused vulnerability scanning
@@ -14,23 +16,56 @@ External SCA Tool Clients:
 - FOSSA - License compliance and vulnerability scanning
 """
 
+# Core clients (only need requests - always available)
 from .osv_client import OSVClient
 from .nvd_client import NVDClient
 from .kev_client import KEVClient
+from .epss_client import EPSSClient
+from .ghsa_client import GHSAClient
 
-# External SCA tool clients
+# Base class for external SCA clients
 from .sca_client_base import SCAClientBase, SCAResponse, SCAVulnerability
-from .snyk_client import SnykClient
-from .blackduck_client import BlackDuckClient
-from .sonarqube_client import SonarQubeClient
-from .sonatype_client import SonatypeClient
-from .fossa_client import FOSSAClient
+
+# External SCA tool clients (may need optional dependencies like aiohttp)
+# Import with graceful fallback so missing deps don't break core functionality
+SnykClient = None
+BlackDuckClient = None
+SonarQubeClient = None
+SonatypeClient = None
+FOSSAClient = None
+
+try:
+    from .snyk_client import SnykClient
+except ImportError:
+    pass  # aiohttp not available
+
+try:
+    from .blackduck_client import BlackDuckClient
+except ImportError:
+    pass
+
+try:
+    from .sonarqube_client import SonarQubeClient
+except ImportError:
+    pass
+
+try:
+    from .sonatype_client import SonatypeClient
+except ImportError:
+    pass
+
+try:
+    from .fossa_client import FOSSAClient
+except ImportError:
+    pass
 
 __all__ = [
     # Vulnerability database clients
     'OSVClient',
     'NVDClient',
     'KEVClient',
+    'EPSSClient',
+    'GHSAClient',
     # External SCA tool clients
     'SCAClientBase',
     'SCAResponse',

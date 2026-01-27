@@ -2,9 +2,13 @@
 -- This is a MATERIALIZED VIEW cache, not source of truth (Kafka is source of truth)
 
 -- Current vulnerability state (Flink sink target)
+-- Hash-based joins: uses environment hash as primary key for instant CVE-to-pod correlation
 CREATE TABLE IF NOT EXISTS vulnerability_matches (
     environment_id VARCHAR(255) NOT NULL,
     cve_id VARCHAR(50) NOT NULL,
+    hash VARCHAR(64),                           -- Environment hash (content-addressable)
+    match_id VARCHAR(100),                      -- Compound key: {hash}:{cve_id}
+    nix_hash VARCHAR(64),                       -- Package derivation hash
     package_purl VARCHAR(500),
     package_cpe VARCHAR(500),
     severity VARCHAR(20) NOT NULL,
@@ -36,6 +40,10 @@ CREATE INDEX IF NOT EXISTS idx_vuln_kev ON vulnerability_matches(cisa_kev);
 CREATE INDEX IF NOT EXISTS idx_vuln_vex_reason ON vulnerability_matches(vex_reason);
 CREATE INDEX IF NOT EXISTS idx_vuln_alert_tier ON vulnerability_matches(alert_tier);
 CREATE INDEX IF NOT EXISTS idx_vuln_risk_score ON vulnerability_matches(risk_score DESC);
+-- Hash-based indexes for blast radius queries
+CREATE INDEX IF NOT EXISTS idx_vuln_hash ON vulnerability_matches(hash);
+CREATE INDEX IF NOT EXISTS idx_vuln_match_id ON vulnerability_matches(match_id);
+CREATE INDEX IF NOT EXISTS idx_vuln_nix_hash ON vulnerability_matches(nix_hash);
 
 -- Audit log for dwell time calculations (append-only)
 CREATE TABLE IF NOT EXISTS detection_audit_log (
@@ -52,15 +60,18 @@ CREATE TABLE IF NOT EXISTS detection_audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_event_type ON detection_audit_log(event_type);
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON detection_audit_log(event_timestamp);
 
--- SBOM inventory (optional: for drill-down queries)
+-- SBOM inventory (for drill-down queries and blast radius)
+-- Maps environments to their derivations with Nix-style hashes
 CREATE TABLE IF NOT EXISTS sbom_inventory (
     id SERIAL PRIMARY KEY,
     environment_id VARCHAR(255) NOT NULL,
-    environment_hash VARCHAR(100),
+    environment_hash VARCHAR(64),              -- Environment hash (content-addressable)
     package_purl VARCHAR(500),
+    purl_base VARCHAR(500),                    -- Version-agnostic PURL for CVE matching
     package_cpe VARCHAR(500),
     package_name VARCHAR(255),
     package_version VARCHAR(100),
+    nix_hash VARCHAR(64),                      -- Package derivation hash
     vex_status VARCHAR(20) DEFAULT 'affected',
     vex_justification TEXT,
     scan_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -69,7 +80,10 @@ CREATE TABLE IF NOT EXISTS sbom_inventory (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sbom_environment ON sbom_inventory(environment_id);
+CREATE INDEX IF NOT EXISTS idx_sbom_env_hash ON sbom_inventory(environment_hash);
 CREATE INDEX IF NOT EXISTS idx_sbom_package ON sbom_inventory(package_name);
+CREATE INDEX IF NOT EXISTS idx_sbom_purl_base ON sbom_inventory(purl_base);
+CREATE INDEX IF NOT EXISTS idx_sbom_nix_hash ON sbom_inventory(nix_hash);
 CREATE INDEX IF NOT EXISTS idx_sbom_cpe ON sbom_inventory(package_cpe);
 CREATE INDEX IF NOT EXISTS idx_sbom_vex ON sbom_inventory(vex_status);
 
@@ -155,9 +169,11 @@ ORDER BY alert_tier;
 -- View for Tier 1 (Break Glass) vulnerabilities - BLOCK LIST
 CREATE OR REPLACE VIEW break_glass_vulnerabilities AS
 SELECT
+    hash,
     environment_id,
     cve_id,
     COALESCE(package_purl, package_cpe) as package_identifier,
+    nix_hash,
     severity,
     cvss_score,
     epss_score,
@@ -174,9 +190,11 @@ ORDER BY risk_score DESC, detected_at DESC;
 -- View for high-risk vulnerabilities sorted by tier and risk
 CREATE OR REPLACE VIEW prioritized_vulnerabilities AS
 SELECT
+    hash,
     environment_id,
     cve_id,
     COALESCE(package_purl, package_cpe) as package_identifier,
+    nix_hash,
     severity,
     cvss_score,
     epss_score,
@@ -202,6 +220,95 @@ FROM vulnerability_matches
 WHERE status = 'active'
   AND cve_published_at IS NOT NULL
   AND detected_at > cve_published_at;
+
+-- =============================================================================
+-- Hash-Based Blast Radius Tables and Views
+-- =============================================================================
+
+-- Package index table (purl_base -> environment hashes containing it)
+-- Enables: "Which environments contain this vulnerable package?"
+CREATE TABLE IF NOT EXISTS package_index (
+    purl_base VARCHAR(500) PRIMARY KEY,
+    hashes TEXT[] NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pkg_idx_hashes ON package_index USING GIN (hashes);
+
+-- Fleet registry (for future k8s integration)
+-- Maps environment hashes to running pods for instant blast radius
+CREATE TABLE IF NOT EXISTS fleet_registry (
+    hash VARCHAR(64) NOT NULL,
+    pod_id VARCHAR(255) NOT NULL,
+    cluster_id VARCHAR(100) NOT NULL,
+    namespace VARCHAR(100) NOT NULL,
+    status VARCHAR(20) DEFAULT 'running',
+    started_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (hash, pod_id)
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_hash ON fleet_registry(hash);
+CREATE INDEX IF NOT EXISTS idx_fleet_status ON fleet_registry(status);
+CREATE INDEX IF NOT EXISTS idx_fleet_cluster ON fleet_registry(cluster_id);
+
+-- View: Blast radius by CVE (which environments/pods are affected)
+CREATE OR REPLACE VIEW blast_radius_by_cve AS
+SELECT
+    vm.cve_id,
+    vm.hash,
+    vm.environment_id,
+    vm.severity,
+    vm.risk_score,
+    vm.alert_tier,
+    COALESCE(
+        (SELECT COUNT(*) FROM fleet_registry f WHERE f.hash = vm.hash AND f.status = 'running'),
+        0
+    ) as running_pods
+FROM vulnerability_matches vm
+WHERE vm.status = 'active' AND vm.vex_status != 'not_affected';
+
+-- View: Blast radius summary by hash (aggregate pod counts)
+CREATE OR REPLACE VIEW blast_radius_by_hash AS
+SELECT
+    vm.hash,
+    vm.environment_id,
+    COUNT(DISTINCT vm.cve_id) as cve_count,
+    COUNT(DISTINCT vm.cve_id) FILTER (WHERE vm.severity = 'critical') as critical_count,
+    COUNT(DISTINCT vm.cve_id) FILTER (WHERE vm.severity = 'high') as high_count,
+    MAX(vm.risk_score) as max_risk_score,
+    COALESCE(
+        (SELECT COUNT(*) FROM fleet_registry f WHERE f.hash = vm.hash AND f.status = 'running'),
+        0
+    ) as running_pods
+FROM vulnerability_matches vm
+WHERE vm.status = 'active'
+  AND vm.vex_status != 'not_affected'
+  AND vm.hash IS NOT NULL
+GROUP BY vm.hash, vm.environment_id
+ORDER BY critical_count DESC, high_count DESC, max_risk_score DESC;
+
+-- View: Environment-to-packages (derivations) relationship
+CREATE OR REPLACE VIEW environment_derivations AS
+SELECT
+    environment_hash as hash,
+    environment_id,
+    package_name,
+    package_version,
+    nix_hash,
+    package_purl as purl,
+    purl_base
+FROM sbom_inventory
+WHERE environment_hash IS NOT NULL;
+
+-- View: Which environments contain a specific package (by purl_base)
+CREATE OR REPLACE VIEW package_to_environments AS
+SELECT
+    purl_base,
+    array_agg(DISTINCT environment_hash) as environment_hashes,
+    array_agg(DISTINCT environment_id) as environment_names,
+    COUNT(DISTINCT environment_hash) as env_count
+FROM sbom_inventory
+WHERE purl_base IS NOT NULL AND environment_hash IS NOT NULL
+GROUP BY purl_base;
 
 -- Function to upsert vulnerability matches (for Flink JDBC sink)
 CREATE OR REPLACE FUNCTION upsert_vulnerability(
@@ -363,3 +470,65 @@ SELECT DISTINCT ON (environment_id, source)
     created_at
 FROM sca_scan_results
 ORDER BY environment_id, source, created_at DESC;
+
+-- =============================================================================
+-- VEX Statements from Vendor Feeds
+-- =============================================================================
+
+-- VEX statements from vendor feeds (Red Hat CSAF, Ubuntu VEX, Chainguard, etc.)
+-- Key: {cve_id}:{product_purl}:{source} - allows multiple vendor opinions per CVE+product
+CREATE TABLE IF NOT EXISTS vex_statements (
+    vex_id VARCHAR(200) PRIMARY KEY,
+    cve_id VARCHAR(50) NOT NULL,
+    product_purl VARCHAR(500),
+    product_cpe VARCHAR(500),
+    vex_status VARCHAR(30) NOT NULL,  -- affected, not_affected, fixed, under_investigation
+    vex_justification VARCHAR(100),    -- CISA justification codes
+    action_statement TEXT,
+    impact_statement TEXT,
+    source VARCHAR(50) NOT NULL,       -- redhat-csaf, ubuntu-vex, chainguard, internal
+    source_url TEXT,
+    published_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vex_cve ON vex_statements(cve_id);
+CREATE INDEX IF NOT EXISTS idx_vex_purl ON vex_statements(product_purl);
+CREATE INDEX IF NOT EXISTS idx_vex_source ON vex_statements(source);
+CREATE INDEX IF NOT EXISTS idx_vex_status ON vex_statements(vex_status);
+
+-- View: VEX coverage by source
+CREATE OR REPLACE VIEW vex_coverage AS
+SELECT
+    source,
+    vex_status,
+    COUNT(*) as count
+FROM vex_statements
+GROUP BY source, vex_status
+ORDER BY source, vex_status;
+
+-- View: CVEs with vendor VEX overrides (not_affected status)
+CREATE OR REPLACE VIEW cve_vex_overrides AS
+SELECT
+    v.cve_id,
+    v.product_purl,
+    v.vex_status,
+    v.vex_justification,
+    v.source,
+    v.updated_at
+FROM vex_statements v
+WHERE v.vex_status = 'not_affected'
+ORDER BY v.updated_at DESC;
+
+-- View: VEX statements by justification reason
+CREATE OR REPLACE VIEW vex_by_justification AS
+SELECT
+    vex_justification,
+    COUNT(*) as count,
+    array_agg(DISTINCT source) as sources
+FROM vex_statements
+WHERE vex_status = 'not_affected'
+  AND vex_justification IS NOT NULL
+GROUP BY vex_justification
+ORDER BY count DESC;

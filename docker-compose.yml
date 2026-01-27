@@ -58,6 +58,9 @@ services:
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sbom_events --partitions 3 --replication-factor 1 --config retention.ms=604800000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic cve_feed --partitions 1 --replication-factor 1 --config cleanup.policy=compact --config min.cleanable.dirty.ratio=0.01 --config segment.ms=100
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic vulnerability_matches --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        # Hash-based blast radius topics
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic package_index --partitions 3 --replication-factor 1 --config cleanup.policy=compact --config segment.ms=300000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic fleet_registry --partitions 3 --replication-factor 1 --config cleanup.policy=compact --config segment.ms=300000
         # SCA tool integration topics
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_scan_requests --partitions 3 --replication-factor 1 --config retention.ms=604800000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_scan_responses --partitions 3 --replication-factor 1 --config cleanup.policy=compact
@@ -67,6 +70,8 @@ services:
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_sonar_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_sonatype_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic sca_fossa_responses --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        # VEX statements topic for vendor VEX feeds (Red Hat CSAF, Ubuntu VEX, Chainguard, etc.)
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic vex_statements --partitions 3 --replication-factor 1 --config cleanup.policy=compact --config segment.ms=300000
         echo 'Topics created:'
         kafka-topics --list --bootstrap-server kafka:29092
 
@@ -112,6 +117,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
       # NVD API key for higher rate limits (10x faster with key)
       NVD_API_KEY: ${NVD_API_KEY:-}
+      # GitHub token for GHSA API (higher rate limits)
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     restart: unless-stopped
 
   # Prometheus for metrics
@@ -214,6 +221,23 @@ services:
       elasticsearch:
         condition: service_healthy
 
+  # Kibana dashboard auto-provisioning
+  kibana-init:
+    image: curlimages/curl:latest
+    container_name: sca-kibana-init
+    depends_on:
+      kibana:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./kibana/dashboards:/dashboards:ro
+      - ./kibana/import-dashboards.sh:/import-dashboards.sh:ro
+    entrypoint: ["/bin/sh", "/import-dashboards.sh"]
+    environment:
+      KIBANA_URL: http://kibana:5601
+    restart: "no"
+
   # Elasticsearch consumer (Kafka → ES)
   es-consumer:
     build:
@@ -295,6 +319,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sca_password}
       # NVD API key for enrichment
       NVD_API_KEY: ${NVD_API_KEY:-}
+      # GitHub token for GHSA API (higher rate limits)
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       # SCA tool credentials (provided by user via .env file)
       SNYK_TOKEN: ${SNYK_TOKEN:-}
       SNYK_ORG_ID: ${SNYK_ORG_ID:-}

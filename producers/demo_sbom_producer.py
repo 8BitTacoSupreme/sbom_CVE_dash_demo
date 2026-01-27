@@ -5,6 +5,12 @@ Demo SBOM Producer - Generates SBOMs that trigger real CVE hits.
 Queries live vulnerability feeds (OSV/NVD) and creates SBOMs with packages
 that match real CVEs. Designed for compelling demos with realistic data.
 
+Hash-based SBOM joins:
+  - Each package gets a simulated Nix derivation hash (nix_hash)
+  - PURLs include nix-hash qualifier: pkg:nix/name@version?nix-hash=xxx
+  - Environment hash = SHA256 of sorted package nix-hashes
+  - Enables instant CVE-to-pod correlation for blast radius queries
+
 Severity distribution (configurable):
   - Critical: 1-2 hits
   - High: ~12 hits
@@ -18,13 +24,14 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import random
 import sys
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,6 +46,140 @@ try:
     KAFKA_AVAILABLE = True
 except ImportError:
     KAFKA_AVAILABLE = False
+
+
+# =============================================================================
+# Hash Generation Functions (Simulated Nix-style hashes)
+# =============================================================================
+
+def generate_nix_hash(name: str, version: str) -> str:
+    """
+    Simulate Nix derivation hash (32 chars).
+
+    In real Flox/Nix, this is the content-addressable hash of the derivation.
+    For demo, we generate deterministic hash from name@version.
+    """
+    content = f"{name}@{version}"
+    return hashlib.sha256(content.encode()).hexdigest()[:32]
+
+
+def build_nix_purl(name: str, version: str, nix_hash: str) -> str:
+    """
+    Build PURL in Nix format with derivation hash qualifier.
+
+    Format: pkg:nix/name@version?nix-hash=hash
+    """
+    return f"pkg:nix/{name}@{version}?nix-hash={nix_hash}"
+
+
+def get_purl_base(purl: str) -> str:
+    """
+    Extract base PURL without version/qualifiers for CVE matching.
+
+    pkg:nix/openssl@3.0.12?nix-hash=abc -> pkg:nix/openssl
+    """
+    if '?' in purl:
+        purl = purl.split('?')[0]  # Remove qualifiers
+    if '@' in purl:
+        purl = purl.rsplit('@', 1)[0]  # Remove version
+    return purl
+
+
+# CPE vendor mappings for common packages (simulated for demo)
+# In production, Flox derives these from Nixpkgs metadata
+CPE_VENDOR_MAP = {
+    # Python packages
+    'pyyaml': ('pyyaml_project', 'pyyaml'),
+    'pillow': ('python', 'pillow'),
+    'django': ('djangoproject', 'django'),
+    'requests': ('python', 'requests'),
+    'jinja2': ('palletsprojects', 'jinja2'),
+    'cryptography': ('cryptography_project', 'cryptography'),
+    'sqlalchemy': ('sqlalchemy', 'sqlalchemy'),
+    'flask': ('palletsprojects', 'flask'),
+    'numpy': ('numpy', 'numpy'),
+    'scipy': ('scipy', 'scipy'),
+    'pandas': ('pandas', 'pandas'),
+    'urllib3': ('python', 'urllib3'),
+    'certifi': ('certifi_project', 'certifi'),
+    'bleach': ('mozilla', 'bleach'),
+    'lxml': ('lxml', 'lxml'),
+    'paramiko': ('paramiko', 'paramiko'),
+    'werkzeug': ('palletsprojects', 'werkzeug'),
+    'setuptools': ('python', 'setuptools'),
+    'pip': ('pypa', 'pip'),
+    # NPM packages
+    'lodash': ('lodash', 'lodash'),
+    'axios': ('axios', 'axios'),
+    'minimist': ('minimist_project', 'minimist'),
+    'node-forge': ('digitalbazaar', 'forge'),
+    'json5': ('json5', 'json5'),
+    'jsonwebtoken': ('auth0', 'jsonwebtoken'),
+    'tar': ('npm', 'tar'),
+    'got': ('sindresorhus', 'got'),
+    'shell-quote': ('substack', 'shell-quote'),
+    'express': ('expressjs', 'express'),
+    'moment': ('momentjs', 'moment'),
+    'underscore': ('underscorejs', 'underscore'),
+    'qs': ('ljharb', 'qs'),
+    'semver': ('npm', 'semver'),
+    'glob-parent': ('gulpjs', 'glob-parent'),
+    'async': ('caolan', 'async'),
+    'serialize-javascript': ('yahoo', 'serialize-javascript'),
+    'y18n': ('yargs', 'y18n'),
+    'yargs-parser': ('yargs', 'yargs-parser'),
+    'debug': ('debug-js', 'debug'),
+    'chalk': ('chalk', 'chalk'),
+    'commander': ('tj', 'commander'),
+    'colors': ('marak', 'colors'),
+    'ini': ('npm', 'ini'),
+    'marked': ('markedjs', 'marked'),
+    'highlight.js': ('highlightjs', 'highlight.js'),
+    'prismjs': ('prismjs', 'prism'),
+    'sanitize-html': ('apostrophecms', 'sanitize-html'),
+    'dompurify': ('cure53', 'dompurify'),
+    'node-serialize': ('luin', 'serialize'),
+    'event-stream': ('dominictarr', 'event-stream'),
+    'ua-parser-js': ('AgoraCommunity', 'ua-parser-js'),
+    'coa': ('veged', 'coa'),
+    'rc': ('dominictarr', 'rc'),
+    # System packages
+    'openssl': ('openssl', 'openssl'),
+    'curl': ('haxx', 'curl'),
+    'nginx': ('nginx', 'nginx'),
+    'httpd': ('apache', 'http_server'),
+    'log4j-core': ('apache', 'log4j'),
+    'spring-beans': ('vmware', 'spring_framework'),
+}
+
+
+def generate_cpe(name: str, version: str) -> Optional[str]:
+    """
+    Generate CPE 2.3 identifier for NVD matching.
+
+    Format: cpe:2.3:a:vendor:product:version:*:*:*:*:*:*:*
+    """
+    mapping = CPE_VENDOR_MAP.get(name.lower())
+    if mapping:
+        vendor, product = mapping
+        return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
+    # Fallback: use package name as both vendor and product
+    return f"cpe:2.3:a:{name.lower()}:{name.lower()}:{version}:*:*:*:*:*:*:*"
+
+
+def generate_environment_hash(packages: List[Dict]) -> str:
+    """
+    Generate deterministic environment hash from package list.
+
+    In production Flox, this comes from the Nix store derivation.
+    For demo, we simulate with SHA256 of sorted package nix-hashes.
+
+    Same packages in same versions → same hash (content-addressable).
+    """
+    # Sort by nix_hash for determinism
+    nix_hashes = sorted([p.get('nix_hash', '') for p in packages if p.get('nix_hash')])
+    content = '\n'.join(nix_hashes)
+    return hashlib.sha256(content.encode()).hexdigest()[:32]
 
 
 # Realistic environment names in user/project or team/service format
@@ -351,7 +492,7 @@ class DemoSBOMProducer:
         return None
 
     def _build_purl(self, pkg_info: Dict, version: str) -> str:
-        """Build a Package URL."""
+        """Build a Package URL (legacy format for CVE lookup)."""
         purl_type = pkg_info.get('purl_type', 'generic')
         name = pkg_info['name']
 
@@ -360,6 +501,10 @@ class DemoSBOMProducer:
             return f"pkg:{purl_type}/{pkg_info['group']}/{name}@{version}"
         else:
             return f"pkg:{purl_type}/{name}@{version}"
+
+    def _build_nix_purl(self, name: str, version: str, nix_hash: str) -> str:
+        """Build Nix-style PURL with derivation hash qualifier."""
+        return build_nix_purl(name, version, nix_hash)
 
     def generate_demo_sbom(
         self,
@@ -395,10 +540,29 @@ class DemoSBOMProducer:
             vulns = self.query_real_cves(severity, limit=target)
 
             for vuln_info in vulns:
+                # Generate Nix-style derivation hash for the package
+                nix_hash = generate_nix_hash(vuln_info['name'], vuln_info['version'])
+
+                # Build Nix-style PURL with derivation hash
+                nix_purl = build_nix_purl(vuln_info['name'], vuln_info['version'], nix_hash)
+                purl_base = get_purl_base(nix_purl)
+
+                # Generate CPE for NVD matching (Flox enriches with CPE)
+                cpe = generate_cpe(vuln_info['name'], vuln_info['version'])
+
+                # Build Nix store path (simulated)
+                nix_store_path = f"/nix/store/{nix_hash}-{vuln_info['name']}-{vuln_info['version']}"
+
                 packages.append({
                     'name': vuln_info['name'],
                     'version': vuln_info['version'],
-                    'purl': vuln_info['purl'],
+                    'nix_hash': nix_hash,  # Package derivation hash
+                    'nix_store_path': nix_store_path,  # Nix store path
+                    'purl': nix_purl,  # Nix-style PURL with hash qualifier
+                    'purl_base': purl_base,  # For CVE matching (version-agnostic)
+                    'cpe': cpe,  # CPE for NVD matching
+                    'ecosystem': 'nix',  # Nix ecosystem
+                    'legacy_purl': vuln_info['purl'],  # Original PURL for OSV CVE lookup
                     'vex_status': 'affected',
                     '_cve_id': vuln_info['cve_id'],  # For demo display
                     '_severity': vuln_info['severity'],
@@ -418,8 +582,12 @@ class DemoSBOMProducer:
             marker_str = f" ({', '.join(markers)})" if markers else ""
             print(f"found {len(vulns)}{marker_str}")
 
+        # Generate environment hash from package nix-hashes
+        env_hash = generate_environment_hash(packages)
+
         return {
-            'environment_id': environment_id,
+            'hash': env_hash,  # Environment hash (primary key for joins)
+            'environment_id': environment_id,  # Human-readable name
             'scan_timestamp': datetime.now(timezone.utc).isoformat(),
             'packages': packages,
         }
@@ -486,9 +654,10 @@ def publish_to_kafka(producer: 'KafkaProducer', cve_feed: List[Dict], sbom: Dict
     # Small delay to ensure CVEs are processed
     time.sleep(1)
 
-    # Clean SBOM (remove internal fields)
+    # Clean SBOM (remove internal fields starting with _)
     clean_sbom = {
-        'environment_id': sbom['environment_id'],
+        'hash': sbom['hash'],  # Environment hash (primary key)
+        'environment_id': sbom['environment_id'],  # Human-readable name
         'scan_timestamp': sbom['scan_timestamp'],
         'packages': [
             {k: v for k, v in pkg.items() if not k.startswith('_')}
@@ -496,9 +665,10 @@ def publish_to_kafka(producer: 'KafkaProducer', cve_feed: List[Dict], sbom: Dict
         ]
     }
 
-    # Publish SBOM
-    print(f"Publishing SBOM ({len(clean_sbom['packages'])} packages) to sbom_events topic...")
-    producer.send('sbom_events', key=sbom['environment_id'], value=clean_sbom)
+    # Publish SBOM keyed by environment hash for partitioning
+    env_hash = sbom['hash']
+    print(f"Publishing SBOM (hash={env_hash[:8]}..., {len(clean_sbom['packages'])} packages) to sbom_events topic...")
+    producer.send('sbom_events', key=env_hash, value=clean_sbom)
     producer.flush()
 
     print("Done!")
@@ -516,7 +686,8 @@ def demo_mode(producer_instance: DemoSBOMProducer):
     )
 
     print(f"\nGenerated SBOM: {sbom['environment_id']}")
-    print(f"Total packages: {len(sbom['packages'])}")
+    print(f"Environment Hash: {sbom['hash']}")
+    print(f"Total packages (derivations): {len(sbom['packages'])}")
 
     # Count by severity
     by_severity = {}
@@ -535,13 +706,19 @@ def demo_mode(producer_instance: DemoSBOMProducer):
     if kev_count:
         print(f"\nKEV (actively exploited): {kev_count}")
 
-    print(f"\nSample packages:")
+    print(f"\nSample packages (Nix derivations):")
     for pkg in sbom['packages'][:10]:
         kev_marker = " [KEV!]" if pkg.get('_kev') else ""
-        print(f"  {pkg['_severity']:8} | {pkg['_cve_id']:15} | {pkg['name']}@{pkg['version']}{kev_marker}")
+        nix_hash_short = pkg.get('nix_hash', '')[:8] + '...'
+        print(f"  {pkg['_severity']:8} | {pkg['_cve_id']:15} | {pkg['name']}@{pkg['version']} (nix:{nix_hash_short}){kev_marker}")
 
     if len(sbom['packages']) > 10:
         print(f"  ... and {len(sbom['packages']) - 10} more")
+
+    # Show sample PURL format
+    if sbom['packages']:
+        sample_pkg = sbom['packages'][0]
+        print(f"\nPURL format: {sample_pkg.get('purl', 'N/A')}")
 
 
 def continuous_mode(

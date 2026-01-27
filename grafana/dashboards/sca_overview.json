@@ -24,6 +24,14 @@
         },
         "overrides": [
           {
+            "matcher": { "id": "byName", "options": "Hash" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } },
+              { "id": "custom.width", "value": 80 }
+            ]
+          },
+          {
             "matcher": { "id": "byName", "options": "🚨 ENV" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
@@ -71,7 +79,7 @@
           "datasource": { "type": "postgres", "uid": "postgres" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT environment_id as \"🚨 ENV\", cve_id as \"CVE\", ROUND(risk_score, 0) as risk, tier_reason as \"REASON\" FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' AND alert_tier = 1 ORDER BY risk_score DESC LIMIT 10",
+          "rawSql": "SELECT SUBSTRING(hash, 1, 8) as \"Hash\", environment_id as \"🚨 ENV\", cve_id as \"CVE\", ROUND(risk_score, 0) as risk, tier_reason as \"REASON\" FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' AND alert_tier = 1 ORDER BY risk_score DESC LIMIT 10",
           "refId": "A"
         }
       ],
@@ -446,6 +454,12 @@
             ]
           },
           {
+            "matcher": { "id": "byName", "options": "hash" },
+            "properties": [
+              { "id": "custom.width", "value": 80 }
+            ]
+          },
+          {
             "matcher": { "id": "byName", "options": "severity" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
@@ -506,7 +520,7 @@
           "datasource": { "type": "postgres", "uid": "postgres" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE alert_tier WHEN 1 THEN 'T1:BREAK' WHEN 2 THEN 'T2:IMMED' ELSE 'T3:STD' END as tier, environment_id, cve_id, COALESCE(package_purl, package_cpe) as package, severity, ROUND(risk_score, 0) as risk, ROUND(epss_score * 100, 1) as epss_pct, CASE WHEN cisa_kev THEN 'KEV' ELSE '' END as kev, vex_status, tier_reason, detected_at FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' ORDER BY alert_tier ASC, risk_score DESC NULLS LAST LIMIT 100",
+          "rawSql": "SELECT CASE alert_tier WHEN 1 THEN 'T1:BREAK' WHEN 2 THEN 'T2:IMMED' ELSE 'T3:STD' END as tier, SUBSTRING(hash, 1, 8) as hash, environment_id, cve_id, COALESCE(package_purl, package_cpe) as package, severity, ROUND(risk_score, 0) as risk, ROUND(epss_score * 100, 1) as epss_pct, CASE WHEN cisa_kev THEN 'KEV' ELSE '' END as kev, vex_status, tier_reason, detected_at FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' ORDER BY alert_tier ASC, risk_score DESC NULLS LAST LIMIT 100",
           "refId": "A"
         }
       ],
@@ -626,6 +640,69 @@
         { "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "severity", "handlerKey": "field.name" }, { "fieldName": "count", "handlerKey": "field.value" }] } }
       ],
       "type": "piechart"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "description": "Environment blast radius - CVE counts by hash for kubectl/gatekeeper integration",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "critical" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "custom.width", "value": 60 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "high" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
+              { "id": "custom.width", "value": 60 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "max_risk" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "gradient-gauge", "type": "gauge" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "orange", "value": 70 }, { "color": "red", "value": 85 }] } },
+              { "id": "max", "value": 100 },
+              { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "hash" },
+            "properties": [
+              { "id": "custom.width", "value": 90 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "critical" }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT SUBSTRING(hash, 1, 12) as hash, environment_id, COUNT(DISTINCT cve_id) as cve_count, COUNT(DISTINCT cve_id) FILTER (WHERE severity = 'critical') as critical, COUNT(DISTINCT cve_id) FILTER (WHERE severity = 'high') as high, ROUND(MAX(risk_score), 0) as max_risk FROM vulnerability_matches WHERE status = 'active' AND vex_status != 'not_affected' AND hash IS NOT NULL GROUP BY hash, environment_id ORDER BY critical DESC, high DESC, max_risk DESC NULLS LAST LIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Blast Radius by Hash",
+      "type": "table"
     }
   ],
   "refresh": "5s",

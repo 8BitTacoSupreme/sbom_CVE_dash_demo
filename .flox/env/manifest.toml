@@ -26,6 +26,7 @@ postgresql.pkg-path = "postgresql"
 curl.pkg-path = "curl"
 envsubst.pkg-path = "envsubst"
 grype.pkg-path = "grype"
+ripgrep.pkg-path = "ripgrep"
 
 ## Environment Variables
 [vars]
@@ -58,8 +59,6 @@ on-activate = '''
       psycopg2-binary \
       prometheus-client \
       requests \
-      aiohttp \
-      elasticsearch \
       --quiet
     touch "$deps_flag"
   fi

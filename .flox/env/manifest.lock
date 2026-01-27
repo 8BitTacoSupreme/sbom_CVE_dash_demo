@@ -30,6 +30,9 @@
       "python": {
         "pkg-path": "python311Full"
       },
+      "ripgrep": {
+        "pkg-path": "ripgrep"
+      },
       "uv": {
         "pkg-path": "uv"
       }
@@ -44,7 +47,7 @@
       "POSTGRES_USER": "sca"
     },
     "hook": {
-      "on-activate": "  venv=\"${FLOX_ENV_CACHE}/venv\"\n\n  if [ ! -d \"$venv\" ]; then\n    echo \"Creating Python virtual environment...\"\n    uv venv \"$venv\" --python python3\n  fi\n\n  if [ -f \"$venv/bin/activate\" ]; then\n    source \"$venv/bin/activate\"\n  fi\n\n  deps_flag=\"${FLOX_ENV_CACHE}/.deps_installed\"\n  if [ ! -f \"$deps_flag\" ]; then\n    echo \"Installing Python dependencies...\"\n    uv pip install --python \"$venv/bin/python\" \\\n      kafka-python \\\n      psycopg2-binary \\\n      prometheus-client \\\n      requests \\\n      aiohttp \\\n      elasticsearch \\\n      --quiet\n    touch \"$deps_flag\"\n  fi\n\n  # Create project directories if they don't exist\n  mkdir -p \"$FLOX_ENV_PROJECT/producers\"\n  mkdir -p \"$FLOX_ENV_PROJECT/flink/jobs\"\n  mkdir -p \"$FLOX_ENV_PROJECT/postgres\"\n  mkdir -p \"$FLOX_ENV_PROJECT/prometheus\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/datasources\"\n"
+      "on-activate": "  venv=\"${FLOX_ENV_CACHE}/venv\"\n\n  if [ ! -d \"$venv\" ]; then\n    echo \"Creating Python virtual environment...\"\n    uv venv \"$venv\" --python python3\n  fi\n\n  if [ -f \"$venv/bin/activate\" ]; then\n    source \"$venv/bin/activate\"\n  fi\n\n  deps_flag=\"${FLOX_ENV_CACHE}/.deps_installed\"\n  if [ ! -f \"$deps_flag\" ]; then\n    echo \"Installing Python dependencies...\"\n    uv pip install --python \"$venv/bin/python\" \\\n      kafka-python \\\n      psycopg2-binary \\\n      prometheus-client \\\n      requests \\\n      --quiet\n    touch \"$deps_flag\"\n  fi\n\n  # Create project directories if they don't exist\n  mkdir -p \"$FLOX_ENV_PROJECT/producers\"\n  mkdir -p \"$FLOX_ENV_PROJECT/flink/jobs\"\n  mkdir -p \"$FLOX_ENV_PROJECT/postgres\"\n  mkdir -p \"$FLOX_ENV_PROJECT/prometheus\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/dashboards\"\n  mkdir -p \"$FLOX_ENV_PROJECT/grafana/provisioning/datasources\"\n"
     },
     "profile": {
       "common": "  sca_status() {\n    echo \"=== SCA Demo Status ===\"\n    docker-compose ps 2>/dev/null || echo \"Docker Compose not running\"\n  }\n\n  sca_up() {\n    docker-compose up -d\n  }\n\n  sca_down() {\n    docker-compose down\n  }\n\n  sca_logs() {\n    docker-compose logs -f \"${1:-}\"\n  }\n"
@@ -1204,6 +1207,126 @@
       "outputs": {
         "debug": "/nix/store/fvxnwy92x5z9q6wz91rk5y97mf88ykzm-python3-3.11.10-debug",
         "out": "/nix/store/7v4y9aggyrwavq2v9slsywvv7w98clb0-python3-3.11.10"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ripgrep",
+      "broken": false,
+      "derivation": "/nix/store/qdn0z9jzpblbwng65i8ld1lg7n3lg8aj-ripgrep-14.1.1.drv",
+      "description": "Utility that combines the usability of The Silver Searcher with the raw speed of grep",
+      "install_id": "ripgrep",
+      "license": "[ Unlicense, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "ripgrep-14.1.1",
+      "pname": "ripgrep",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "14.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8pij01r7bpyxs27ahj05ln5w1w80d3vd-ripgrep-14.1.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ripgrep",
+      "broken": false,
+      "derivation": "/nix/store/az9kj8hp3h39lrq62sjscxy7zmi2j7l5-ripgrep-14.1.1.drv",
+      "description": "Utility that combines the usability of The Silver Searcher with the raw speed of grep",
+      "install_id": "ripgrep",
+      "license": "[ Unlicense, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "ripgrep-14.1.1",
+      "pname": "ripgrep",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "14.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/h6ic8j781chwq0bkjfdc7m3jm54mhpzl-ripgrep-14.1.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ripgrep",
+      "broken": false,
+      "derivation": "/nix/store/3mdjipcdaz8gfkzl86zidj1vwmr8ajlq-ripgrep-14.1.1.drv",
+      "description": "Utility that combines the usability of The Silver Searcher with the raw speed of grep",
+      "install_id": "ripgrep",
+      "license": "[ Unlicense, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "ripgrep-14.1.1",
+      "pname": "ripgrep",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "14.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/hg2sz7q36gixdkdfdxfv8ix8kik84pck-ripgrep-14.1.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ripgrep",
+      "broken": false,
+      "derivation": "/nix/store/pndm33q674syn40sgibv4wx70a4941sv-ripgrep-14.1.1.drv",
+      "description": "Utility that combines the usability of The Silver Searcher with the raw speed of grep",
+      "install_id": "ripgrep",
+      "license": "[ Unlicense, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "name": "ripgrep-14.1.1",
+      "pname": "ripgrep",
+      "rev": "a3c0b3b21515f74fd2665903d4ce6bc4dc81c77c",
+      "rev_count": 692963,
+      "rev_date": "2024-10-14T06:48:30Z",
+      "scrape_date": "2024-10-16T03:55:11Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "14.1.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/jpylriswiywbbs2dw5x8v5db6jc25nj0-ripgrep-14.1.1"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

@@ -34,10 +34,13 @@ class ElasticsearchConsumer:
         "mappings": {
             "properties": {
                 "match_id": {"type": "keyword"},
+                "hash": {"type": "keyword"},  # Environment hash for blast radius
+                "nix_hash": {"type": "keyword"},  # Package derivation hash
                 "cve_id": {"type": "keyword"},
                 "package_name": {"type": "keyword"},
                 "package_version": {"type": "keyword"},
                 "purl": {"type": "keyword"},
+                "purl_base": {"type": "keyword"},  # Version-agnostic PURL for grouping
                 "environment": {"type": "keyword"},
                 "producer": {"type": "keyword"},
                 "severity": {"type": "keyword"},
@@ -128,12 +131,25 @@ class ElasticsearchConsumer:
 
     def transform(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Transform Kafka message to Elasticsearch document."""
+        purl = message.get("purl") or message.get("package_purl")
+
+        # Extract purl_base for aggregations (version-agnostic)
+        purl_base = None
+        if purl:
+            if '?' in purl:
+                purl_base = purl.split('?')[0]
+            if '@' in (purl_base or purl):
+                purl_base = (purl_base or purl).rsplit('@', 1)[0]
+
         doc = {
             "match_id": message.get("match_id"),
+            "hash": message.get("hash"),  # Environment hash for blast radius
+            "nix_hash": message.get("nix_hash"),  # Package derivation hash
             "cve_id": message.get("cve_id"),
             "package_name": message.get("package_name"),
             "package_version": message.get("package_version"),
-            "purl": message.get("purl") or message.get("package_purl"),
+            "purl": purl,
+            "purl_base": purl_base,  # Version-agnostic PURL
             "environment": message.get("environment") or message.get("environment_id"),
             "producer": message.get("producer"),
             "severity": message.get("severity", "unknown"),
