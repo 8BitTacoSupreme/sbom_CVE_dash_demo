@@ -170,18 +170,28 @@ services:
       kafka:
         condition: service_healthy
 
-  # Grafana for visualization
+  # Grafana for visualization (Flox-branded)
   grafana:
     image: grafana/grafana:10.2.0
     hostname: grafana
     container_name: sca-grafana
+    user: root
+    entrypoint: ["/etc/grafana/branding/entrypoint.sh"]
     ports:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # Flox branding
+      GF_USERS_DEFAULT_THEME: dark
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_AUTH_DISABLE_SIGNOUT_MENU: "false"
+      # Custom page title
+      GF_PANELS_DISABLE_SANITIZE_HTML: "true"
     volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/branding:/etc/grafana/branding:ro
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
       - grafana_data:/var/lib/grafana
@@ -300,6 +310,30 @@ services:
       kafka:
         condition: service_healthy
       splunk:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # DefectDojo Consumer (Kafka → DefectDojo API)
+  # Batches vulnerability matches by environment, builds CycloneDX SBOMs,
+  # and imports to DefectDojo for remediation workflow tracking.
+  # Requires DEFECTDOJO_API_TOKEN in .env and a running DefectDojo instance.
+  defectdojo-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    hostname: defectdojo-consumer
+    container_name: sca-defectdojo-consumer
+    profiles: ["defectdojo"]
+    command: python -m consumers.defectdojo_consumer
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DEFECTDOJO_URL: ${DEFECTDOJO_URL:-http://host.docker.internal:8443}
+      DEFECTDOJO_API_TOKEN: ${DEFECTDOJO_API_TOKEN:-}
+      DEFECTDOJO_VERIFY_SSL: "false"
+      DEFECTDOJO_BATCH_SIZE: "50"
+      DEFECTDOJO_BATCH_TIMEOUT: "30"
+    depends_on:
+      kafka:
         condition: service_healthy
     restart: unless-stopped
 

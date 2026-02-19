@@ -3,11 +3,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install dependencies - pin elasticsearch to 8.11.x for ES 8.11 compatibility
+# requests is needed by defectdojo_consumer (via defectdojo_client)
 RUN pip install --no-cache-dir \
     kafka-python \
-    "elasticsearch>=8.11.0,<8.12.0"
+    "elasticsearch>=8.11.0,<8.12.0" \
+    requests
 
-# Copy consumer code
+# Copy consumer code and client libraries (needed by defectdojo consumer)
 COPY consumers/ /app/consumers/
+COPY clients/ /app/clients/
 
 CMD ["python", "-m", "consumers.es_consumer"]

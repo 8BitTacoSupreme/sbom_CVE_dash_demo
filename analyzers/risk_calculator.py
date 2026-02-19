@@ -31,9 +31,10 @@ class RiskCalculator:
     Calculate composite risk score and assign alert tier.
 
     Risk Score Formula:
-      - CVSS normalized (0-10 → 0-100): 30%
-      - EPSS (0-1 → 0-100): 40%
+      - CVSS normalized (0-10 → 0-100): 25%
+      - EPSS (0-1 → 0-100): 35%
       - KEV bonus: 30% if actively exploited
+      - Scorecard penalty (0-10 → 0-100 inverted): 10% (low maintenance = higher risk)
 
     Tier Assignment:
       - Tier 1: KEV=True AND severity='critical'
@@ -41,10 +42,11 @@ class RiskCalculator:
       - Tier 3: Everything else
     """
 
-    # Weight configuration
-    CVSS_WEIGHT = 0.30
-    EPSS_WEIGHT = 0.40
+    # Weight configuration (sum to 1.0)
+    CVSS_WEIGHT = 0.25
+    EPSS_WEIGHT = 0.35
     KEV_WEIGHT = 0.30
+    SCORECARD_WEIGHT = 0.10
 
     # Tier thresholds
     TIER2_RISK_THRESHOLD = 80
@@ -58,7 +60,8 @@ class RiskCalculator:
         cvss_score: Optional[float] = None,
         epss_score: Optional[float] = None,
         cisa_kev: bool = False,
-        severity: Optional[str] = None
+        severity: Optional[str] = None,
+        scorecard_score: Optional[float] = None,
     ) -> RiskAssessment:
         """
         Calculate risk score and assign tier.
@@ -68,6 +71,7 @@ class RiskCalculator:
             epss_score: EPSS probability (0-1 scale)
             cisa_kev: Whether CVE is on CISA KEV list
             severity: Severity string ("critical", "high", etc.)
+            scorecard_score: OpenSSF Scorecard aggregate score (0-10, higher = better maintained)
 
         Returns:
             RiskAssessment with score, tier, and reasoning
@@ -77,11 +81,20 @@ class RiskCalculator:
         epss_normalized = (epss_score or 0) * 100  # 0-1 → 0-100
         kev_bonus = self.KEV_BONUS if cisa_kev else 0
 
+        # Scorecard: invert so low maintenance = high risk
+        # Score of 2/10 → penalty of 80, score of 9/10 → penalty of 10
+        # If no scorecard data, use neutral value (50) to avoid penalizing unknowns
+        if scorecard_score is not None:
+            scorecard_penalty = (10 - scorecard_score) * 10  # 0-100 inverted
+        else:
+            scorecard_penalty = 50  # Neutral when unknown
+
         # Calculate composite risk score
         risk_score = (
             cvss_normalized * self.CVSS_WEIGHT +
             epss_normalized * self.EPSS_WEIGHT +
-            kev_bonus * self.KEV_WEIGHT
+            kev_bonus * self.KEV_WEIGHT +
+            scorecard_penalty * self.SCORECARD_WEIGHT
         )
 
         # Cap at 100

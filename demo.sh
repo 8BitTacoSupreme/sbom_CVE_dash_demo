@@ -773,6 +773,98 @@ print('  Published SBOM with KEV-relevant packages')
         print_url "http://localhost:3000/d/sca-overview"
         ;;
 
+    defectdojo)
+        print_step "DefectDojo Integration"
+        case "${2:-status}" in
+            start)
+                print_info "Starting DefectDojo consumer (requires running DefectDojo instance)..."
+                if [ -z "${DEFECTDOJO_API_TOKEN:-}" ]; then
+                    echo -e "${RED}  DEFECTDOJO_API_TOKEN not set in .env${NC}"
+                    echo "  1. Start DefectDojo: docker-compose -f docker-compose.defectdojo.yml up -d"
+                    echo "  2. Get API token from DefectDojo > API v2 > Tokens"
+                    echo "  3. Add to .env: DEFECTDOJO_API_TOKEN=<your-token>"
+                    exit 1
+                fi
+                docker-compose --profile defectdojo up -d defectdojo-consumer
+                echo -e "${GREEN}  DefectDojo consumer started${NC}"
+                echo ""
+                print_info "Vulnerability matches will now sync to DefectDojo"
+                print_url "DefectDojo UI: ${DEFECTDOJO_URL:-http://localhost:8443}"
+                ;;
+            stop)
+                print_info "Stopping DefectDojo consumer..."
+                docker-compose stop defectdojo-consumer
+                echo -e "${GREEN}  Stopped${NC}"
+                ;;
+            status)
+                echo ""
+                echo -e "${CYAN}DefectDojo Integration Status:${NC}"
+                echo ""
+                # Check consumer
+                if docker-compose ps defectdojo-consumer 2>/dev/null | grep -q "Up"; then
+                    echo -e "  Consumer:    ${GREEN}running${NC}"
+                else
+                    echo -e "  Consumer:    ${YELLOW}not running${NC} (start with: ./demo.sh defectdojo start)"
+                fi
+                # Check DD reachability
+                DD_URL="${DEFECTDOJO_URL:-http://localhost:8443}"
+                if curl -sf "$DD_URL/api/v2/" >/dev/null 2>&1; then
+                    echo -e "  DefectDojo:  ${GREEN}reachable${NC} at $DD_URL"
+                else
+                    echo -e "  DefectDojo:  ${RED}unreachable${NC} at $DD_URL"
+                fi
+                # Check token
+                if [ -n "${DEFECTDOJO_API_TOKEN:-}" ]; then
+                    echo -e "  API Token:   ${GREEN}configured${NC}"
+                else
+                    echo -e "  API Token:   ${YELLOW}not set${NC} (add DEFECTDOJO_API_TOKEN to .env)"
+                fi
+                echo ""
+                print_info "DD data model: Product Type='Flox SCA', Product=environment_id"
+                print_url "$DD_URL"
+                ;;
+            logs)
+                docker-compose logs -f defectdojo-consumer
+                ;;
+            *)
+                echo "Usage: ./demo.sh defectdojo [start|stop|status|logs]"
+                ;;
+        esac
+        ;;
+
+    scorecard)
+        print_step "OpenSSF Scorecard - Upstream Repository Health"
+        echo ""
+        echo -e "${CYAN}Scorecard measures upstream project health (0-10):${NC}"
+        echo "  - Code-Review, Maintained, Vulnerabilities, Branch-Protection"
+        echo "  - Low score = poorly maintained = higher risk for CVEs"
+        echo ""
+        REPO="${2:-github.com/apache/logging-log4j2}"
+        print_info "Querying Scorecard for $REPO..."
+        python3 -c "
+import sys
+sys.path.insert(0, '.')
+from clients.scorecard_client import ScorecardClient
+
+client = ScorecardClient()
+result = client.get_score('$REPO')
+if result:
+    print(f'  Repository: {result.repo}')
+    print(f'  Aggregate Score: {result.score}/10')
+    print(f'  Maintenance: {result.maintenance_score}/10')
+    print(f'  Vulnerabilities: {result.vulnerability_score}/10')
+    print()
+    print('  Check Details:')
+    for c in sorted(result.checks, key=lambda x: x.score):
+        marker = '!' if c.score <= 3 else ' '
+        print(f'    {marker} {c.name}: {c.score}/10 - {c.reason[:60]}')
+else:
+    print(f'  Scorecard not available for {\"$REPO\"}')"
+        echo ""
+        print_info "Scorecard scores are factored into risk tier calculations"
+        print_info "Low-scored repos get a risk bump (poorly maintained = higher risk)"
+        ;;
+
     help|*)
         echo "SCA Demo - Real-time Vulnerability Detection"
         echo ""
@@ -808,6 +900,12 @@ print('  Published SBOM with KEV-relevant packages')
         echo "  elk             Start ELK stack (Elasticsearch + Kibana)"
         echo "  elk-stop        Stop ELK stack (preserves data)"
         echo "  elk-reset       Stop and reset ELK stack (clears data)"
+        echo ""
+        echo "DefectDojo (Vulnerability Management):"
+        echo "  defectdojo [cmd] Manage DefectDojo integration (start|stop|status|logs)"
+        echo ""
+        echo "OpenSSF Scorecard:"
+        echo "  scorecard [repo] Query upstream repo health (e.g., github.com/org/repo)"
         echo ""
         echo "Risk Tiering:"
         echo "  tiers           Show current tier summary (T1/T2/T3)"

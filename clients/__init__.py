@@ -8,6 +8,12 @@ Clients for querying live vulnerability databases:
 - EPSS (Exploit Prediction Scoring System) - Exploitation probability scores
 - GHSA (GitHub Security Advisories) - GitHub-curated vulnerability data
 
+Vulnerability Management:
+- DefectDojo - Remediation workflows, SLA tracking, CycloneDX import
+
+OpenSSF Standards:
+- Scorecard - Upstream repository health scores (0-10)
+
 External SCA Tool Clients:
 - Snyk - Developer-focused vulnerability scanning
 - Black Duck - Enterprise SCA with BDSA advisories (coming soon)
@@ -22,6 +28,10 @@ from .nvd_client import NVDClient
 from .kev_client import KEVClient
 from .epss_client import EPSSClient
 from .ghsa_client import GHSAClient
+
+# Vulnerability management and OpenSSF clients
+from .defectdojo_client import DefectDojoClient
+from .scorecard_client import ScorecardClient
 
 # Base class for external SCA clients
 from .sca_client_base import SCAClientBase, SCAResponse, SCAVulnerability
@@ -66,6 +76,9 @@ __all__ = [
     'KEVClient',
     'EPSSClient',
     'GHSAClient',
+    # Vulnerability management and OpenSSF
+    'DefectDojoClient',
+    'ScorecardClient',
     # External SCA tool clients
     'SCAClientBase',
     'SCAResponse',

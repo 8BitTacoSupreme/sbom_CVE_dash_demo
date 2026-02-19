@@ -60,6 +60,13 @@ except ImportError as e:
     # KEV/EPSS not available - features will be disabled
     pass
 
+# OpenSSF Scorecard for upstream repo health (optional enrichment)
+ScorecardClient = None
+try:
+    from clients.scorecard_client import ScorecardClient
+except ImportError:
+    pass
+
 # Configuration
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "localhost")
@@ -98,6 +105,11 @@ else:
     kev_client = None
     epss_client = None
     risk_calculator = None
+
+# OpenSSF Scorecard client (optional enrichment for upstream repo health)
+scorecard_client = None
+if ScorecardClient is not None:
+    scorecard_client = ScorecardClient()
 
 # Threading
 shutdown_event = threading.Event()
@@ -369,6 +381,13 @@ def create_enriched_match(
             epss_score = epss_data.score
             epss_percentile = epss_data.percentile
 
+    # OpenSSF Scorecard enrichment (upstream repo health)
+    upstream_scorecard = None
+    if scorecard_client:
+        sc_result = scorecard_client.get_score_by_purl(purl or pkg.get('purl', ''))
+        if sc_result:
+            upstream_scorecard = sc_result.score
+
     # Risk calculation and tier assignment (v3 feature - requires risk_calculator)
     risk_score = None
     alert_tier = 3
@@ -379,7 +398,8 @@ def create_enriched_match(
             cvss_score=cve.get('cvss_score'),
             epss_score=epss_score,
             cisa_kev=cisa_kev,
-            severity=severity
+            severity=severity,
+            scorecard_score=upstream_scorecard,
         )
         risk_score = risk.risk_score
         alert_tier = risk.tier
@@ -412,6 +432,7 @@ def create_enriched_match(
         'kev_ransomware': kev_ransomware,
         'epss_score': epss_score,
         'epss_percentile': epss_percentile,
+        'scorecard_score': upstream_scorecard,
         'risk_score': risk_score,
         'alert_tier': alert_tier,
         'tier_reason': tier_reason,
@@ -808,6 +829,10 @@ def consume_loop(replay: bool = False):
         print("  v3 Features: Enabled (VEX + KEV + EPSS + Risk Tiering + Vendor VEX)")
     else:
         print("  v3 Features: Disabled (run locally for full features)")
+    if scorecard_client:
+        print("  OpenSSF Scorecard: Enabled (upstream repo health enrichment)")
+    else:
+        print("  OpenSSF Scorecard: Disabled")
 
     # Wait for Kafka
     print("  Connecting to Kafka...")
