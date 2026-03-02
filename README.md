@@ -86,6 +86,41 @@ Contains derivations:
 
 ---
 
+## CISA 2025 SBOM Compliance
+
+The SBOM Enhancer (`producers/sbom_enhancer.py`) transforms raw Flox-generated SPDX SBOMs into fully CISA 2025-compliant documents, satisfying all 11 required data fields:
+
+| # | CISA Element | Implementation |
+|---|-------------|----------------|
+| 1 | SBOM Author | Organization + Tool in `creationInfo.creators` |
+| 2 | Software Producer | Supplier from `sbom_data/nix_package_metadata.json` mapping |
+| 3 | Component Name | Pass-through from Flox SPDX |
+| 4 | Component Version | Pass-through from Flox SPDX |
+| 5 | Software Identifiers | Ecosystem-specific PURLs + CPE 2.3 via mapping table |
+| 6 | Component Hash | SHA-256 derived from Nix store path |
+| 7 | License | SPDX license expressions from Flox |
+| 8 | Dependency Relationship | 411 relationships (DEPENDS_ON, GENERATED_FROM, CONTAINS) |
+| 9 | Tool Name | Enrichment tool added to creators |
+| 10 | Timestamp | ISO 8601 from enrichment time |
+| 11 | Generation Context | `post-build` lifecycle annotation |
+
+```bash
+# Generate CISA-compliant SPDX + CycloneDX
+python producers/sbom_enhancer.py \
+  --input flox-localstack-aarch64-darwin.spdx.json \
+  --output-spdx enhanced-localstack.spdx.json \
+  --output-cdx enhanced-localstack.cdx.json
+
+# With Log4Shell injection for demo
+python producers/sbom_enhancer.py \
+  --input flox-localstack-aarch64-darwin.spdx.json \
+  --output-spdx enhanced-localstack-kev.spdx.json \
+  --output-cdx enhanced-localstack-kev.cdx.json \
+  --inject-kev
+```
+
+---
+
 ## System Architecture
 
 ```
@@ -93,91 +128,95 @@ Contains derivations:
 │                         SCA VULNERABILITY DETECTION PIPELINE                            │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 
-  ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
-  │                              EXTERNAL DATA SOURCES (5 parallel)                               │
-  │  ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐              │
-  │  │    NVD    │   │    OSV    │   │   GHSA    │   │   CISA    │   │   FIRST   │              │
-  │  │   (CPE)   │   │  (PURL)   │   │  (GitHub) │   │    KEV    │   │   EPSS    │              │
-  │  │ CVE data  │   │ CVE data  │   │ CVE data  │   │ Exploited │   │ Exploit   │              │
-  │  │ + ranges  │   │ + ranges  │   │ + curated │   │   list    │   │  scores   │              │
-  │  └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   └─────┬─────┘              │
-  └────────┼───────────────┼───────────────┼───────────────┼───────────────┼────────────────────┘
-           │               │               │               │               │
-           ▼               ▼               ▼               ▼               ▼
-  ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
-  │                                     API CLIENTS                                               │
-  │  ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐              │
-  │  │nvd_client │   │osv_client │   │ghsa_client│   │kev_client │   │epss_client│              │
-  │  └───────────┘   └───────────┘   └───────────┘   └───────────┘   └───────────┘              │
-  └──────────────────────────────────────────┬────────────────────────────────────────────────────┘
-                                       │
-  ┌──────────────────┐                 │
-  │  SBOM Producer   │                 │
-  │  (sbom_producer) │                 │
-  └────────┬─────────┘                 │
-           │                           │
-  ┌────────┴─────────┐                 │
-  │  Flox Demo       │                 │
-  │  Producer        │─────────────────┤
-  └────────┬─────────┘                 │
-           │                           │
-           ▼                           ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │                         KAFKA                                │
-  │  ┌───────────────┐  ┌───────────────┐  ┌─────────────────┐  │
-  │  │  sbom_events  │  │   cve_feed    │  │ vulnerability   │  │
-  │  │    topic      │  │    topic      │  │   _matches      │  │
-  │  │  (3 parts)    │  │  (compacted)  │  │    topic        │  │
-  │  └───────┬───────┘  └───────┬───────┘  └────────▲────────┘  │
-  └──────────┼──────────────────┼───────────────────┼───────────┘
-             │                  │                   │
-             └────────┬─────────┘                   │
-                      │                             │
-                      ▼                             │
-  ┌─────────────────────────────────────────────────────────────┐
-  │                    STREAM PROCESSOR                          │
-  │  ┌───────────────────────────────────────────────────────┐  │
-  │  │              BI-DIRECTIONAL JOIN                       │  │
-  │  │         SBOM packages ◄──► CVE purls/cpes             │  │
-  │  └───────────────────────────┬───────────────────────────┘  │
-  │                              │                              │
-  │  ┌───────────────────────────▼───────────────────────────┐  │
-  │  │                  ENRICHMENT LAYER                      │  │
-  │  │  ┌────────────┐  ┌────────────┐  ┌─────────────────┐  │  │
-  │  │  │ KEV Client │  │EPSS Client │  │ Version Matcher │  │  │
-  │  │  │  (CISA)    │  │  (FIRST)   │  │     (VEX)       │  │  │
-  │  │  └─────┬──────┘  └─────┬──────┘  └────────┬────────┘  │  │
-  │  │        │               │                  │           │  │
-  │  │        ▼               ▼                  ▼           │  │
-  │  │  ┌─────────────────────────────────────────────────┐  │  │
-  │  │  │              RISK CALCULATOR                     │  │  │
-  │  │  │     Risk = (CVSS × 0.30) + (EPSS × 0.40)        │  │  │
-  │  │  │            + (KEV × 0.30)                        │  │  │
-  │  │  └────────────────────┬────────────────────────────┘  │  │
-  │  │                       │                               │  │
-  │  │  ┌────────────────────▼────────────────────────────┐  │  │
-  │  │  │              TIER ASSIGNMENT                     │  │  │
-  │  │  │  T1: KEV + Critical    → BREAK GLASS            │  │  │
-  │  │  │  T2: Risk>80 | EPSS>40%→ IMMEDIATE              │  │  │
-  │  │  │  T3: Everything else   → STANDARD               │  │  │
-  │  │  └─────────────────────────────────────────────────┘  │  │
-  │  └───────────────────────────────────────────────────────┘  │
-  └──────────────────────────┬──────────────────────────────────┘
-                             │
-            ┌────────────────┼────────────────┐
-            │                │                │
-            ▼                ▼                ▼
-  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-  │  PostgreSQL  │   │    Kafka     │   │ ES Consumer  │
-  │   :5432      │   │   (output)   │   │              │
-  └──────┬───────┘   └──────────────┘   └──────┬───────┘
-         │                                      │
-         │                                      ▼
-         │                              ┌──────────────┐
-         │                              │Elasticsearch │
-         │                              │    :9200     │
-         │                              └──────┬───────┘
-         │                                     │
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │                              EXTERNAL DATA SOURCES (6 parallel)                                      │
+  │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌────────────────┐     │
+  │  │    NVD    │  │    OSV    │  │   GHSA    │  │   CISA    │  │   FIRST   │  │    OpenSSF     │     │
+  │  │   (CPE)   │  │  (PURL)   │  │  (GitHub) │  │    KEV    │  │   EPSS    │  │   Scorecard    │     │
+  │  │ CVE data  │  │ CVE data  │  │ CVE data  │  │ Exploited │  │ Exploit   │  │ Repo health    │     │
+  │  │ + ranges  │  │ + ranges  │  │ + curated │  │   list    │  │  scores   │  │ scores (0-10)  │     │
+  │  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └───────┬────────┘     │
+  └────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────────────┼─────────────┘
+           │              │              │              │              │                  │
+           ▼              ▼              ▼              ▼              ▼                  ▼
+  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │                                     API CLIENTS                                                      │
+  │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌────────────────┐     │
+  │  │nvd_client │  │osv_client │  │ghsa_client│  │kev_client │  │epss_client│  │scorecard_client│     │
+  │  └───────────┘  └───────────┘  └───────────┘  └───────────┘  └───────────┘  └────────────────┘     │
+  └──────────────────────────────────────────┬──────────────────────────────────────────────────────────┘
+                                             │
+  ┌────────────────────┐                     │
+  │   SBOM Enhancer    │                     │
+  │ (CISA 2025 enrich) │                     │
+  └────────┬───────────┘                     │
+           │                                 │
+  ┌────────▼─────────┐                       │
+  │  SBOM Producer   │                       │
+  │  (sbom_producer) │                       │
+  └────────┬─────────┘                       │
+           │                                 │
+  ┌────────┴─────────┐                       │
+  │  Flox Demo       │                       │
+  │  Producer        │───────────────────────┤
+  └────────┬─────────┘                       │
+           │                                 │
+           ▼                                 ▼
+  ┌──────────────────────────────────────────────────────────────────────────────┐
+  │                                KAFKA                                         │
+  │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+  │  │ sbom_events  │  │  cve_feed   │  │ vulnerability  │  │  sca_scan    │  │
+  │  │   topic      │  │   topic     │  │   _matches     │  │  _requests   │  │
+  │  │  (3 parts)   │  │ (compacted) │  │    topic       │  │   topic      │  │
+  │  └──────┬───────┘  └──────┬──────┘  └───────▲────────┘  └──────┬───────┘  │
+  └─────────┼─────────────────┼─────────────────┼──────────────────┼──────────┘
+            │                 │                 │                  │
+            └───────┬─────────┘                 │                  │
+                    │                           │                  │
+                    ▼                           │                  ▼
+  ┌─────────────────────────────────────────────┴──┐   ┌──────────────────────────────────────────────┐
+  │                STREAM PROCESSOR                 │   │              SCA ORCHESTRATOR                 │
+  │  ┌───────────────────────────────────────────┐  │   │  Consumes sca_scan_requests, fans out to:    │
+  │  │          BI-DIRECTIONAL JOIN               │  │   │                                              │
+  │  │     SBOM packages ◄──► CVE purls/cpes     │  │   │  ┌────────┐ ┌────────┐ ┌──────────────────┐  │
+  │  └───────────────────┬───────────────────────┘  │   │  │  Snyk  │ │ FOSSA  │ │   SonarQube      │  │
+  │                      │                          │   │  │  (API) │ │ (API)  │ │ (query results)  │  │
+  │  ┌───────────────────▼───────────────────────┐  │   │  └────────┘ └────────┘ └──────────────────┘  │
+  │  │              ENRICHMENT LAYER              │  │   │  ┌────────┐ ┌────────┐ ┌──────────────────┐  │
+  │  │  ┌──────────┐ ┌──────────┐ ┌───────────┐  │  │   │  │ Trivy  │ │ Grype  │ │ Dependency-Track │  │
+  │  │  │KEV Client│ │EPSS Clnt │ │ Version   │  │  │   │  │ (CLI)  │ │ (CLI)  │ │     (API)        │  │
+  │  │  │ (CISA)   │ │ (FIRST)  │ │Matcher/VEX│  │  │   │  └────────┘ └────────┘ └──────────────────┘  │
+  │  │  └────┬─────┘ └────┬─────┘ └─────┬─────┘  │  │   │                                              │
+  │  │       ▼            ▼             ▼        │  │   │  Results → sca_scan_responses topic           │
+  │  │  ┌─────────────────────────────────────┐  │  │   │           + per-tool topics                   │
+  │  │  │          RISK CALCULATOR             │  │  │   │           + PostgreSQL                       │
+  │  │  │  Risk = (CVSS×0.30)+(EPSS×0.40)     │  │  │   └──────────────────────────────────────────────┘
+  │  │  │        + (KEV×0.30)                  │  │  │
+  │  │  └─────────────────┬───────────────────┘  │  │
+  │  │                    │                      │  │
+  │  │  ┌─────────────────▼───────────────────┐  │  │
+  │  │  │          TIER ASSIGNMENT             │  │  │
+  │  │  │  T1: KEV+Critical  → BREAK GLASS    │  │  │
+  │  │  │  T2: Risk>80|EPSS>40% → IMMEDIATE   │  │  │
+  │  │  │  T3: Everything else → STANDARD      │  │  │
+  │  │  └─────────────────────────────────────┘  │  │
+  │  └───────────────────────────────────────────┘  │
+  └────────────────────┬────────────────────────────┘
+                       │
+      ┌────────────────┼────────────────┐
+      │                │                │
+      ▼                ▼                ▼
+  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+  │  PostgreSQL  │ │    Kafka     │ │ ES Consumer  │
+  │   :5432      │ │   (output)   │ │              │
+  └──────┬───────┘ └──────────────┘ └──────┬───────┘
+         │                                 │
+         │              ┌──────────────┐   ▼
+         │              │  DefectDojo  │ ┌──────────────┐
+         │              │  Consumer    │ │Elasticsearch │
+         │              │ (findings → │ │    :9200     │
+         │              │  DD API)    │ └──────┬───────┘
+         │              └──────────────┘       │
          ▼                                     ▼
   ┌──────────────┐                      ┌──────────────┐
   │   GRAFANA    │                      │   KIBANA     │
@@ -185,18 +224,9 @@ Contains derivations:
   └──────────────┘                      └──────────────┘
    Ops Dashboard                         Investigation
    - Break Glass (RED)                   - Full-text search
-   - Tier Summary                        - Compliance reports
-   - Risk Gauges                         - CVE drill-down
-
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │                   ALTERNATIVE SCAN PATH                      │
-  │  ┌─────────────────────────────────────────────────────────┐│
-  │  │                      GRYPE                               ││
-  │  │    Standalone CLI scanner (not in stream processor)     ││
-  │  │    grype <sbom.json> -o json | jq (tier filtering)      ││
-  │  └─────────────────────────────────────────────────────────┘│
-  └─────────────────────────────────────────────────────────────┘
+   - SCA Comparison                      - Compliance reports
+   - Tier Summary                        - CVE drill-down
+   - Risk Gauges
 
 
   ┌─────────────────────────────────────────────────────────────┐
@@ -218,25 +248,33 @@ Contains derivations:
 │                              DATA FLOW                                               │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 
-EXTERNAL SOURCES (5 parallel APIs)
+EXTERNAL SOURCES (6 parallel APIs)
 ──────────────────────────────────
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│   NVD API   │  │   OSV API   │  │  GHSA API   │  │  CISA KEV   │  │ FIRST EPSS  │
-│ (CPE-based) │  │(PURL-based) │  │  (GitHub)   │  │ (24h cache) │  │ (24h cache) │
-└──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
-       │                │                │                │                │
-       └────────────────┴────────────────┴────────────────┴────────────────┘
-                                │
-                                ▼
-PRODUCERS               TOPICS                 PROCESSOR              SINKS
-─────────               ──────                 ─────────              ─────
+┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐
+│  NVD API  │ │  OSV API  │ │ GHSA API  │ │ CISA KEV  │ │FIRST EPSS │ │  OpenSSF  │
+│(CPE-based)│ │(PURL-based│ │ (GitHub)  │ │(24h cache)│ │(24h cache)│ │ Scorecard │
+└─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘
+      │              │              │              │              │              │
+      └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
+                                    │
+                                    ▼
+PRODUCERS               TOPICS                    PROCESSORS             SINKS
+─────────               ──────                    ──────────             ─────
 
 ┌─────────────┐
-│ SPDX Files  │──┐
+│ Flox SPDX   │
+│    File     │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│   SBOM      │
+│  Enhancer   │──┐
+│(CISA 2025)  │  │
 └─────────────┘  │
                  │      ┌───────────────┐
 ┌─────────────┐  ├─────▶│  sbom_events  │──┐
-│ Flox Demo   │──┤      │   (SBOM+PURL) │  │
+│ Flox Demo   │──┤      │  (SBOM+PURL)  │  │
 │  Producer   │  │      └───────────────┘  │
 └─────────────┘  │                         │     ┌─────────────────┐
                  │      ┌───────────────┐  │     │ Stream          │
@@ -245,6 +283,7 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
                         └───────────────┘  │     │ - Join          │
                                            │     │ - KEV enrich    │
                                            │     │ - EPSS enrich   │
+                                           │     │ - Scorecard     │
                                            │     │ - VEX infer     │
                                            │     │ - Risk calc     │
                                            │     │ - Tier assign   │
@@ -258,23 +297,47 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
                                                │ (enriched output) │
                                                └─────────┬─────────┘
                                                          │
-                              ┌───────────────┬──────────┴──────────┐
-                              ▼               ▼                     ▼
-                       ┌────────────┐  ┌────────────┐        ┌────────────┐
-                       │ PostgreSQL │  │   Kafka    │        │   ES       │
-                       │ (primary)  │  │ (downstream│        │ Consumer   │
-                       └──────┬─────┘  │  consumers)│        └──────┬─────┘
-                              │        └────────────┘               │
-                              │                                     ▼
-                              │                              ┌────────────┐
-                              ▼                              │Elasticsearch│
-                       ┌────────────┐                        └──────┬─────┘
-                       │  Grafana   │                               │
-                       │ Dashboard  │                               ▼
-                       └────────────┘                        ┌────────────┐
-                                                             │  Kibana    │
-                                                             │ Dashboard  │
-                                                             └────────────┘
+                              ┌──────────┬───────────────┼───────────────┐
+                              ▼          ▼               ▼               ▼
+                       ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐
+                       │ PostgreSQL │ │   Kafka    │ │   ES       │ │ DefectDojo │
+                       │ (primary)  │ │(downstream)│ │ Consumer   │ │ Consumer   │
+                       └──────┬─────┘ └────────────┘ └──────┬─────┘ └──────┬─────┘
+                              │                             │              │
+                              │                             ▼              ▼
+                              │                      ┌────────────┐ ┌────────────┐
+                              ▼                      │Elasticsearch│ │ DefectDojo │
+                       ┌────────────┐                └──────┬─────┘ │  (SLA +    │
+                       │  Grafana   │                       │       │  remediate)│
+                       │ Dashboard  │                       ▼       └────────────┘
+                       └────────────┘                ┌────────────┐
+                                                     │  Kibana    │
+                                                     │ Dashboard  │
+                                                     └────────────┘
+
+                      ┌───────────────┐
+                      │sca_scan       │
+                      │  _requests    │──────────────────────────────────────┐
+                      └───────────────┘                                     │
+                                                                            ▼
+                                                               ┌─────────────────────┐
+                                                               │  SCA ORCHESTRATOR    │
+                                                               │                     │
+                                                               │  Fan-out to:        │
+                                                               │  ┌─────┐ ┌────────┐ │
+                                                               │  │Snyk │ │ FOSSA  │ │
+                                                               │  └─────┘ └────────┘ │
+                                                               │  ┌─────┐ ┌────────┐ │
+                                                               │  │Trivy│ │ Grype  │ │
+                                                               │  └─────┘ └────────┘ │
+                                                               │  ┌─────┐ ┌────────┐ │
+                                                               │  │Sonar│ │ DTrack │ │
+                                                               │  └─────┘ └────────┘ │
+                                                               │                     │
+                                                               │  → sca_scan         │
+                                                               │    _responses topic  │
+                                                               │  → PostgreSQL        │
+                                                               └─────────────────────┘
 ```
 
 ---
@@ -288,6 +351,7 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 | **GHSA** | `https://api.github.com/advisories` | CVE lookup via GitHub Security Advisories | CVSS scores, CWE IDs, affected packages, curated data |
 | **CISA KEV** | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | Known exploited vulnerabilities | Active exploitation status, ransomware association |
 | **FIRST EPSS** | `https://api.first.org/data/v1/epss` | Exploit probability scores | Score (0-1), percentile ranking |
+| **OpenSSF Scorecard** | `https://api.scorecard.dev/` | Upstream repository health scoring | Aggregate score (0-10), per-check breakdown |
 
 > **NVD API Key**: For higher rate limits (10x), get a free API key at https://nvd.nist.gov/developers/request-an-api-key and set `NVD_API_KEY` in your environment.
 
@@ -301,7 +365,8 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 ## Component Summary
 
 ### Producers
-- **sbom_producer.py** - Reads real SPDX JSON files, enriches with PURLs, publishes to Kafka
+- **sbom_enhancer.py** - CISA 2025 compliance enrichment: adds PURLs, CPEs, suppliers, checksums, generation context; outputs SPDX 2.3 + CycloneDX 1.5
+- **sbom_producer.py** - Reads real SPDX JSON files, enriches with PURLs, publishes to Kafka with `generation_context: post-build`
 - **flox_demo_producer.py** - Generates mock SBOMs and queries NVD/OSV for real CVEs
 - **live_cve_producer.py** - Fetches live CVE data from OSV/NVD APIs
 - **cve_producer.py** - Publishes individual CVE events, supports status updates
@@ -309,11 +374,28 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 - **vex_producer.py** - Ingests vendor VEX feeds (Red Hat, Ubuntu, Chainguard), publishes to vex_statements topic
 
 ### API Clients (`clients/`)
+
+#### Vulnerability Data Sources
 - **nvd_client.py** - NVD REST API client for CPE-based CVE lookup (rate-limited)
 - **osv_client.py** - OSV API client for PURL-based CVE lookup (batch support)
 - **ghsa_client.py** - GitHub Security Advisory API client for PURL-based CVE lookup
 - **kev_client.py** - CISA KEV feed client with 24-hour caching
 - **epss_client.py** - FIRST EPSS API client with 24-hour caching
+- **scorecard_client.py** - OpenSSF Scorecard API client for upstream repo health scores (0-10)
+
+#### External SCA Tools
+- **snyk_client.py** - Snyk REST API for SBOM vulnerability scanning (CycloneDX 1.5)
+- **fossa_client.py** - FOSSA API for license compliance and vulnerability scanning
+- **sonarqube_client.py** - SonarQube API for querying existing code analysis results
+- **trivy_client.py** - Trivy CLI wrapper for local SBOM scanning (CycloneDX 1.5)
+- **grype_client.py** - Grype CLI wrapper for local SBOM scanning (CycloneDX 1.5)
+- **dtrack_client.py** - Dependency-Track REST API for SBOM upload and vulnerability findings
+
+#### Vulnerability Management
+- **defectdojo_client.py** - DefectDojo v2 API for remediation workflows, SLA tracking, CycloneDX import
+
+### Services (`services/`)
+- **sca_orchestrator.py** - Consumes `sca_scan_requests` from Kafka, fans out to Snyk/FOSSA/Sonar/Trivy/Grype/DTrack in parallel, publishes results to `sca_scan_responses` + per-tool topics + PostgreSQL
 
 ### Analyzers (`analyzers/`)
 - **risk_calculator.py** - Computes composite risk score, assigns alert tier
@@ -322,13 +404,14 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 ### Stream Processor (`processor/`)
 - **stream_processor.py** - Core engine:
   - Bi-directional join (SBOM ↔ CVE)
-  - Enrichment (KEV, EPSS)
+  - Enrichment (KEV, EPSS, OpenSSF Scorecard)
   - VEX inference
   - Risk calculation + tier assignment
   - Writes to PostgreSQL + publishes to Kafka
 
 ### Consumers (`consumers/`)
 - **es_consumer.py** - Indexes vulnerability_matches to Elasticsearch
+- **defectdojo_consumer.py** - Syncs vulnerability matches to DefectDojo for remediation workflows
 
 ### Kafka Topics
 | Topic | Partitions | Retention | Key | Purpose |
@@ -336,39 +419,43 @@ PRODUCERS               TOPICS                 PROCESSOR              SINKS
 | `sbom_events` | 3 | 7 days | env hash | SBOM package manifests with Nix hashes |
 | `cve_feed` | 1 | compacted | cve_id | CVE vulnerability records |
 | `vulnerability_matches` | 1 | compacted | hash:cve_id | Enriched matches (output) |
+| `sca_scan_requests` | 3 | 7 days | sbom_key | SCA tool scan requests (orchestrator input) |
+| `sca_scan_responses` | 3 | 7 days | sbom_key | Unified SCA tool results |
+| `sca_snyk_responses` | 1 | 7 days | sbom_key | Snyk-specific results |
+| `sca_fossa_responses` | 1 | 7 days | sbom_key | FOSSA-specific results |
+| `sca_sonar_responses` | 1 | 7 days | sbom_key | SonarQube-specific results |
+| `sca_trivy_responses` | 1 | 7 days | sbom_key | Trivy-specific results |
+| `sca_grype_responses` | 1 | 7 days | sbom_key | Grype-specific results |
+| `sca_dtrack_responses` | 1 | 7 days | sbom_key | Dependency-Track-specific results |
 | `vex_statements` | 3 | compacted | purl:cve_id | Vendor VEX feeds (Red Hat, Ubuntu, Chainguard) |
 | `package_index` | 3 | compacted | purl_base | Maps packages to environment hashes |
 | `fleet_registry` | 3 | compacted | hash:pod_id | Future: k8s pod tracking |
 
 ### Databases
-- **PostgreSQL (:5432)** - Primary store for vulnerability matches, SQL queries
+- **PostgreSQL (:5432)** - Primary store for vulnerability matches, SCA scan results, SQL queries
 - **Elasticsearch (:9200)** - Full-text search, investigation workflows
 
 ### Visualization
-- **Grafana (:3000)** - Ops dashboard (Break Glass panel, tier stats, trends)
+- **Grafana (:3000)** - Ops dashboard (Break Glass panel, SCA comparison, tier stats, trends)
 - **Kibana (:5601)** - Investigation (search, compliance, drill-down)
-
-### Grype (Standalone Scanner)
-- **Location**: CLI tool in Flox environment (not part of stream processor)
-- **Usage**: `grype <sbom.json> -o json` → pipe to `jq` for tier filtering
-- **Purpose**: Alternative scan path for local SBOM scanning with tier-based output
-- **Command**: `./demo.sh grype-scan <sbom.json>`
 
 ---
 
 ## External SCA Tool Integration
 
-The pipeline integrates with commercial SCA tools for additional vulnerability and license compliance scanning.
+The SCA Orchestrator service fans out SBOM scans to multiple tools in parallel and normalizes results for comparison.
 
 ### Supported Tools
 
-| Tool | Status | Purpose |
-|------|--------|---------|
-| **Snyk** | Active | Developer-focused vulnerability scanning |
-| **FOSSA** | Active | License compliance + vulnerabilities |
-| **SonarQube** | Active | Integrated code + dependency analysis |
-| **Black Duck** | Coming Soon | Enterprise SCA with BDSA advisories |
-| **Sonatype Nexus IQ** | Coming Soon | Policy-driven vulnerability management |
+| Tool | Type | Purpose |
+|------|------|---------|
+| **Snyk** | API | Developer-focused vulnerability scanning |
+| **FOSSA** | API | License compliance + vulnerabilities |
+| **SonarQube** | API | Query existing code analysis results (read-only) |
+| **Trivy** | CLI | Local vulnerability scanner (CycloneDX/SPDX) |
+| **Grype** | CLI | Local vulnerability scanner (CycloneDX/SPDX) |
+| **Dependency-Track** | API | SBOM upload + vulnerability management platform |
+| **DefectDojo** | API | Remediation workflows, SLA tracking, JIRA integration |
 
 ### Usage
 
@@ -380,6 +467,9 @@ python producers/sbom_producer.py --sbom=app.spdx.json --format=enhanced --kafka
 
 # Scan with specific tools
 python producers/sbom_producer.py --sbom=app.spdx.json --format=enhanced --kafka --trigger-sca --sca-tools=snyk,fossa
+
+# Full SCA demo pipeline (CVEs + SBOM + all tools)
+./demo.sh sca enhanced-localstack-kev.spdx.json trivy,grype,snyk,fossa,dtrack
 ```
 
 ### Configuration
@@ -397,6 +487,20 @@ FOSSA_TOKEN=<api-token>
 # SonarQube
 SONAR_URL=https://sonarqube.example.com
 SONAR_TOKEN=<bearer-token>
+
+# Trivy (local CLI - no API key needed)
+TRIVY_ENABLED=true
+
+# Grype (local CLI - no API key needed)
+GRYPE_ENABLED=true
+
+# Dependency-Track
+DTRACK_URL=http://localhost:8081
+DTRACK_API_KEY=<api-key>
+
+# DefectDojo (Vulnerability Management)
+DEFECTDOJO_URL=http://localhost:8443
+DEFECTDOJO_API_TOKEN=<api-token>
 ```
 
 ### Grafana Dashboard
@@ -498,12 +602,20 @@ flox activate -- python producers/demo_sbom_producer.py --kafka --env myteam/api
 flox activate -- python producers/demo_sbom_producer.py --kafka --critical 5 --high 10  # Custom severity counts
 flox activate -- python producers/demo_sbom_producer.py --demo                     # Preview without publishing
 
+# SBOM Enhancement (CISA 2025 Compliance)
+python producers/sbom_enhancer.py --input app.spdx.json --output-spdx enhanced.spdx.json --output-cdx enhanced.cdx.json
+python producers/sbom_enhancer.py --input app.spdx.json --output-spdx kev.spdx.json --output-cdx kev.cdx.json --inject-kev
+
 # KEV Injection (Incident Simulation)
 flox activate -- python producers/inject_kev.py --list                             # List available KEVs
 flox activate -- python producers/inject_kev.py --inject log4shell                 # Inject single KEV
 flox activate -- python producers/inject_kev.py --inject all                       # Inject all KEVs
 flox activate -- python producers/inject_kev.py --inject log4shell --env prod/api  # Custom environment
 flox activate -- python producers/inject_kev.py --inject log4shell --count 3       # Multiple instances
+
+# Full SCA Pipeline (Snyk/FOSSA/Trivy/Grype/DTrack)
+./demo.sh sca                                    # Default: all tools
+./demo.sh sca enhanced-localstack-kev.spdx.json trivy,grype   # Specific SBOM + tools
 
 # GHSA Feed (GitHub Security Advisories)
 flox activate -- python producers/ghsa_producer.py --recent                        # Fetch recent advisories
@@ -521,11 +633,19 @@ docker-compose stop stream-processor                                            
 flox activate -- python processor/stream_processor.py                              # Run local with v3 features
 flox activate -- python processor/stream_processor.py --replay                     # Replay from beginning
 
+# DefectDojo Integration
+./demo.sh defectdojo start    # Start DefectDojo consumer
+./demo.sh defectdojo status   # Check integration status
+./demo.sh defectdojo logs     # Follow consumer logs
+
+# OpenSSF Scorecard
+./demo.sh scorecard github.com/apache/logging-log4j2     # Query repo health
+
 # Database Queries
 ./demo.sh tiers           # Show tier summary from PostgreSQL
 docker exec sca-postgres psql -U sca -d sca_demo -c "SELECT * FROM blast_radius_by_hash;"
 docker exec sca-postgres psql -U sca -d sca_demo -c "SELECT * FROM break_glass_vulnerabilities;"
 
-# Grype (Standalone Scanner)
+# Grype (Standalone Scanner with Tier Filtering)
 ./demo.sh grype-scan <f>  # Scan SBOM with Grype + tier filtering
 ```
